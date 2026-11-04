@@ -8,7 +8,8 @@ if [[ "${1:-}" != "--confirm" || "$#" -ne 1 ]]; then
 fi
 gh variable set APP_FACTORY_ENABLED -R "$REPO" -b false
 terraform -chdir=infra init
-if [[ -z "$(terraform -chdir=infra state list)" ]]; then
+STATE_RESOURCES=$(terraform -chdir=infra state list)
+if [[ -z "$STATE_RESOURCES" ]]; then
   echo "No Terraform-managed resources. Existing unmanaged Azure resources must be imported first."
   exit 0
 fi
