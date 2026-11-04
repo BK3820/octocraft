@@ -5,65 +5,119 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GitHub App Factory</title>
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e;
-          --green:#238636; --blue:#1f6feb; --red:#da3633; --amber:#d29922; }
+  :root { --bg:#0a0d15; --panel:#131926; --border:#293247; --text:#edf2ff; --muted:#a8b4cd;
+          --green:#1e795d; --blue:#6254d9; --red:#ff8894; --amber:#e9bd6c; }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); }
-  header { padding:16px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
-  header h1 { font-size:20px; margin:0; }
-  header .meta { margin-left:auto; color:var(--muted); font-size:12px; display:flex; gap:12px; }
+  header { padding:18px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; background:#0e1320; }
+  header h1 { font-size:17px; margin:0; letter-spacing:-.3px; }
+  .logo { display:grid; place-items:center; width:36px; height:36px; background:linear-gradient(135deg,#8874ff,#485cdf); border-radius:10px; font-weight:800; }
+  header .meta { margin-left:auto; color:var(--muted); font-size:12px; display:flex; gap:8px; flex-wrap:wrap; }
   .pill { padding:2px 8px; border-radius:999px; border:1px solid var(--border); font-size:12px; }
-  main { max-width:1100px; margin:24px auto; padding:0 24px; }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  main { max-width:1220px; margin:36px auto; padding:0 28px; }
+  .hero { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:24px; }
+  .eyebrow { text-transform:uppercase; font-size:11px; letter-spacing:2px; color:#b5a9ff; font-weight:700; }
+  .hero h2 { font-size:32px; letter-spacing:-1px; margin:6px 0; }
+  .hero p { margin:0; color:var(--muted); max-width:650px; }
+  .workflow { display:flex; gap:14px; align-items:center; margin:24px 0; padding:14px 20px; border:1px solid var(--border); border-radius:12px; background:#101624; color:var(--muted); font-size:12px; flex-wrap:wrap; }
+  .workflow strong { color:var(--text); }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:24px 0; }
+  .stat { background:linear-gradient(130deg,#171f31,#121825); border:1px solid var(--border); padding:18px 20px; border-radius:12px; }
+  .stat span { display:block; color:var(--muted); font-size:12px; }
+  .stat strong { font-size:30px; font-weight:650; }
+  .stat small { color:var(--muted); font-size:11px; display:block; }
+  .toolbar { display:flex; gap:16px; justify-content:space-between; flex-wrap:wrap; margin-bottom:18px; }
+  .tabs { display:flex; gap:4px; flex-wrap:wrap; }
   .tabs button { background:none; border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:6px; cursor:pointer; }
-  .tabs button.active { background:var(--blue); border-color:var(--blue); }
-  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:14px; }
+  .tabs button.active { background:#30264e; border-color:#8b78da; }
+  .search { display:flex; gap:10px; align-items:center; }
+  input[type=search], select { background:#111725; border:1px solid var(--border); border-radius:8px; color:var(--text); padding:8px 10px; }
+  .card { background:linear-gradient(130deg,#171d2c,#111723); border:1px solid var(--border); border-radius:14px; padding:22px 24px; margin-bottom:18px; box-shadow:0 8px 24px #0002; }
   .card.flash { outline:2px solid var(--green); }
   .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .title { font-size:16px; font-weight:600; }
+  .title { font-size:19px; font-weight:650; letter-spacing:-.35px; }
   .muted { color:var(--muted); }
   .status-pending { color:var(--amber); border-color:var(--amber); }
   .status-awaiting_github { color:#58a6ff; border-color:#58a6ff; }
   .status-created { color:#3fb950; border-color:#3fb950; }
   .status-rejected, .status-failed { color:#f85149; border-color:#f85149; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 24px; margin:12px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 24px; margin:18px 0; }
+  .grid div { overflow-wrap:anywhere; }
   .grid div span { display:block; color:var(--muted); font-size:12px; }
   code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
   pre { background:#0b0f14; border:1px solid var(--border); padding:12px; border-radius:6px; overflow:auto; max-height:300px; }
-  .tag { display:inline-block; background:#21262d; border-radius:4px; padding:1px 6px; margin:2px 4px 2px 0; font-size:12px; }
-  .actions { border-top:1px solid var(--border); margin-top:12px; padding-top:12px; }
+  .tag { display:inline-block; background:#222b3e; border:1px solid #344059; border-radius:5px; padding:2px 8px; margin:3px 4px 3px 0; font-size:11px; }
+  .actions { border-top:1px solid var(--border); margin-top:18px; padding-top:18px; }
   label { cursor:pointer; }
-  input[type=email] { background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:6px; min-width:240px; }
-  .btn { border:0; color:#fff; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:600; }
-  .btn.green { background:var(--green); } .btn.blue { background:var(--blue); } .btn.red { background:transparent; border:1px solid var(--red); color:#f85149; }
+  input[type=email] { background:#101725; border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; min-width:240px; }
+  .btn { border:0; color:#fff; padding:9px 16px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .btn.green { background:var(--green); } .btn.blue { background:var(--blue); } .btn.red { background:transparent; border:1px solid var(--red); color:var(--red); }
   .btn.ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .result { background:#0f2a17; border:1px solid #2ea043; border-radius:6px; padding:10px 12px; margin-top:12px; }
+  .result { background:#10291f; border:1px solid #3f886d; border-radius:8px; padding:14px 16px; margin-top:16px; overflow-wrap:anywhere; }
   .empty { text-align:center; padding:48px; color:var(--muted); border:1px dashed var(--border); border-radius:8px; }
-  #toast { position:fixed; bottom:24px; right:24px; background:var(--panel); border:1px solid var(--border); padding:10px 16px; border-radius:6px; display:none; }
-  a { color:#58a6ff; }
+  #toast { position:fixed; bottom:24px; right:24px; background:var(--panel); border:1px solid var(--border); padding:12px 18px; border-radius:8px; display:none; max-width:calc(100% - 48px); z-index:2; }
+  a { color:#b2acff; }
+  :focus-visible { outline:2px solid #b2acff; outline-offset:4px; }
+  .notice { color:#dcc99d; font-size:12px; padding:10px 0; }
+  #error { background:#341d28; border:1px solid #bc6778; border-radius:10px; padding:12px; margin-bottom:20px; }
+  .caption { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  footer { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:11px; padding:24px 0; flex-wrap:wrap; }
+  @media(max-width:700px) {
+    header { padding:16px; flex-wrap:wrap; } header .meta { margin-left:0; width:100%; }
+    main { margin:24px auto; padding:0 16px; } .hero { align-items:flex-start; flex-direction:column; }
+    .hero h2 { font-size:28px; } .stats { grid-template-columns:repeat(2,1fr); gap:10px; }
+    .card { padding:18px 16px; } .search { flex-wrap:wrap; width:100%; }
+    input[type=search] { flex:1; min-width:140px; } input[type=email] { min-width:0; width:100%; }
+    .grid { grid-template-columns:1fr; } .tabs button { padding:6px 9px; }
+  }
+  @media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>🏭 GitHub App Factory</h1>
-  <span class="muted">Pending GitHub App requests from IssueOps / ServiceNow</span>
+  <span class="logo" aria-hidden="true">AF</span>
+  <h1>GitHub App Factory</h1>
+  <span class="pill">APP OPERATIONS</span>
   <div class="meta" id="meta"></div>
 </header>
 <main>
-  <div class="tabs">
-    <button data-filter="pending" class="active">Pending</button>
-    <button data-filter="created">Created</button>
-    <button data-filter="all">All</button>
-    <button class="btn ghost" style="margin-left:auto" onclick="refresh()">⟳ Refresh</button>
-  </div>
-  <div id="list"></div>
+  <section class="hero">
+    <div><div class="eyebrow">From request to ready</div><h2>Your app approval workspace.</h2>
+    <p>Review requested access, create GitHub Apps, and deliver credentials to the right destination. One queue. Every decision in context.</p></div>
+    <button class="btn ghost" onclick="refresh()">Refresh queue</button>
+  </section>
+  <div class="workflow" aria-label="Request lifecycle"><strong>01 · IssueOps request</strong><span>→</span><strong>02 · Manifest review</strong><span>→</span><strong>03 · GitHub confirmation</strong><span>→</span><strong>04 · Credential handoff</strong></div>
+  <section class="stats" aria-label="Queue statistics">
+    <div class="stat"><span>Awaiting action</span><strong id="stat-pending">0</strong><small>Pending or in progress</small></div>
+    <div class="stat"><span>Apps created</span><strong id="stat-created">0</strong><small>Including labeled simulations</small></div>
+    <div class="stat"><span>Needs attention</span><strong id="stat-failed">0</strong><small>Failed conversion requests</small></div>
+    <div class="stat"><span>Total requests</span><strong id="stat-total">0</strong><small>All decisions and statuses</small></div>
+  </section>
+  <div id="error" role="alert" hidden></div>
+  <section class="toolbar" aria-label="Queue controls">
+    <nav class="tabs" aria-label="Filter requests">
+      <button data-filter="pending" class="active" aria-pressed="true">Pending</button>
+      <button data-filter="created" aria-pressed="false">Created</button>
+      <button data-filter="rejected" aria-pressed="false">Rejected</button>
+      <button data-filter="all" aria-pressed="false">All requests</button>
+    </nav>
+    <div class="search">
+      <input type="search" id="search" aria-label="Search requests" placeholder="Search app, owner, requester…">
+      <select id="sort" aria-label="Sort requests"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">App name</option></select>
+    </div>
+  </section>
+  <div class="caption" id="queue-caption" aria-live="polite">Loading requests…</div>
+  <div id="list" aria-busy="true"></div>
+  <footer><span>GitHub confirmation is required to create an app. Simulation never creates a GitHub App.</span><span id="updated">Not yet refreshed</span></footer>
 </main>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 let filter = 'pending';
 let config = {};
+let rows = [];
+const drafts = new Map();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 function toast(msg, ms = 3500) {
@@ -72,9 +126,24 @@ function toast(msg, ms = 3500) {
   clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), ms);
 }
 
-document.querySelectorAll('.tabs [data-filter]').forEach((b) => b.onclick = () => {
-  document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.remove('active'));
-  b.classList.add('active'); filter = b.dataset.filter; refresh();
+function setFilter(value) {
+  filter = value;
+  document.querySelectorAll('.tabs [data-filter]').forEach((x) => {
+    const active = x.dataset.filter === value;
+    x.classList.toggle('active', active); x.setAttribute('aria-pressed', String(active));
+  });
+}
+document.querySelectorAll('.tabs [data-filter]').forEach((b) => b.onclick = () => { setFilter(b.dataset.filter); render(); });
+document.getElementById('search').oninput = () => render();
+document.getElementById('sort').onchange = () => render();
+document.getElementById('list').addEventListener('input', (event) => {
+  const element = event.target;
+  const id = element.closest('.card')?.dataset.id;
+  if (id) {
+    const email = document.getElementById('em-' + id)?.value || '';
+    const storage = document.querySelector(`input[name=st-${id}]:checked`)?.value;
+    drafts.set(id, { secret_storage: storage, notify_email: email });
+  }
 });
 
 async function api(path, body) {
@@ -92,6 +161,7 @@ function sourceLink(r) {
 }
 
 function card(r) {
+  r = { ...r, ...drafts.get(r.id) };
   const m = r.manifest;
   const perms = Object.entries(m.default_permissions || {}).map(([k,v]) => `<span class="tag">${esc(k)}:${esc(v)}</span>`).join('') || '<span class="muted">none</span>';
   const events = (m.default_events || []).map((e) => `<span class="tag">${esc(e)}</span>`).join('') || '<span class="muted">none</span>';
@@ -104,9 +174,10 @@ function card(r) {
       <div class="row" style="margin-bottom:10px">
         <strong>Secret delivery:</strong>
         <label><input type="radio" name="st-${r.id}" value="vault" ${r.secret_storage==='vault'?'checked':''}> 🔐 Vault (${esc(config.vault_provider)})</label>
-        <label><input type="radio" name="st-${r.id}" value="email" ${r.secret_storage==='email'?'checked':''}> 📧 Email as ZIP</label>
-        <input type="email" id="em-${r.id}" placeholder="recipient@company.com" value="${esc(r.notify_email || '')}">
+        <label><input type="radio" name="st-${r.id}" value="email" ${r.secret_storage==='email'?'checked':''}> 📧 ZIP outbox (not sent)</label>
+        <input type="email" id="em-${r.id}" aria-label="Delivery email for ${esc(m.name)}" placeholder="recipient@company.com" value="${esc(r.notify_email || '')}">
       </div>
+      <div class="notice">Vault is recommended. Email mode saves a ZIP and email draft; it does not send an email.</div>
       <div class="row">
         <button class="btn green" onclick="createApp('${r.id}', false, this)">Create on GitHub →</button>
         ${config.allow_simulate ? `<button class="btn blue" onclick="createApp('${r.id}', true, this)">Simulate create (demo)</button>` : ''}
@@ -121,13 +192,14 @@ function card(r) {
     const d = r.delivery || {};
     const deliv = d.method === 'vault'
       ? `🔐 Stored in Vault: <code>${esc(d.location)}</code>${d.version ? ` (v${esc(d.version)})` : ''}`
-      : `📧 Emailed ZIP to <b>${esc(d.to)}</b> — <a href="/outbox/${esc(d.zipName)}">download zip</a> · <a href="/outbox/${esc(d.emlName)}">view .eml</a>`;
+      : `📧 ZIP prepared for <b>${esc(d.to)}</b> (not emailed) — <a href="/outbox/${esc(d.zipName)}">download zip</a> · <a href="/outbox/${esc(d.emlName)}">download email draft</a>`;
     result = `<div class="result">✅ App <a href="${esc(r.app.html_url)}" target="_blank">${esc(r.app.slug)}</a> created — App ID <code>${esc(r.app.id)}</code>, Client ID <code>${esc(r.app.client_id)}</code>${r.simulated ? ' <span class="pill">simulated</span>' : ''}<br>${deliv}</div>`;
   }
   if (r.status === 'failed') result = `<div class="result" style="background:#2a0f0f;border-color:#f85149">❌ ${esc(r.error)}</div>`;
+  if (r.status === 'rejected') result = `<div class="notice">Decision: ${esc(r.reject_reason || 'No reason recorded')}</div>`;
 
   return `
-  <div class="card" id="c-${r.id}">
+  <article class="card" id="c-${r.id}" data-id="${r.id}" aria-label="${esc(m.name)} request">
     <div class="row">
       <span class="title">${esc(m.name)}</span>
       <span class="pill status-${esc(r.status)}">${esc(r.status.replace('_',' '))}</span>
@@ -147,14 +219,39 @@ function card(r) {
     <div><span class="muted">Events:</span> ${events}</div>
     <details style="margin-top:8px"><summary class="muted">View manifest</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
     ${result}${actions}
-  </div>`;
+  </article>`;
 }
 
 async function refresh(flashId) {
-  const rows = await api('/api/requests');
-  const shown = rows.filter((r) => filter === 'all' || (filter === 'pending' ? r.status !== 'created' && r.status !== 'rejected' : r.status === filter));
+  try {
+    rows = await api('/api/requests');
+    document.getElementById('error').hidden = true;
+    render(flashId);
+    document.getElementById('updated').textContent = 'Synced at ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    const error = document.getElementById('error');
+    error.hidden = false; error.textContent = 'Could not refresh requests: ' + e.message;
+  } finally { document.getElementById('list').setAttribute('aria-busy', 'false'); }
+}
+
+function render(flashId) {
+  const query = document.getElementById('search').value.trim().toLowerCase();
+  const shown = rows.filter((r) =>
+    (filter === 'all' || (filter === 'pending' ? !['created','rejected'].includes(r.status) : r.status === filter)) &&
+    [r.manifest.name, r.owner, r.requester, r.manifest.description, r.source?.repo].some((value) => String(value || '').toLowerCase().includes(query)));
+  const sort = document.getElementById('sort').value;
+  shown.sort((a, b) => sort === 'name' ? a.manifest.name.localeCompare(b.manifest.name) :
+    sort === 'oldest' ? a.created_at.localeCompare(b.created_at) : b.created_at.localeCompare(a.created_at));
+  document.getElementById('stat-pending').textContent = rows.filter(r => !['created','rejected'].includes(r.status)).length;
+  document.getElementById('stat-created').textContent = rows.filter(r => r.status === 'created').length;
+  document.getElementById('stat-failed').textContent = rows.filter(r => r.status === 'failed').length;
+  document.getElementById('stat-total').textContent = rows.length;
   document.querySelector('[data-filter=pending]').textContent = `Pending (${rows.filter((r) => !['created','rejected'].includes(r.status)).length})`;
-  document.getElementById('list').innerHTML = shown.length ? shown.map(card).join('') : '<div class="empty">No requests here. Open a <b>GitHub App request</b> issue (IssueOps) or run <code>scripts/simulate-issue.sh</code>.</div>';
+  const expanded = new Set([...document.querySelectorAll('.card details[open]')].map(el => el.closest('.card').dataset.id));
+  document.getElementById('list').innerHTML = shown.length ? shown.map(card).join('') :
+    `<div class="empty"><strong>${query ? 'No matching requests' : 'Your queue is clear'}</strong><p>${query ? 'Try another app name, owner, or requester.' : 'New IssueOps requests will appear here when the integration is enabled.'}</p></div>`;
+  document.querySelectorAll('.card details').forEach(el => { el.open = expanded.has(el.closest('.card').dataset.id); });
+  document.getElementById('queue-caption').textContent = `${shown.length} request${shown.length === 1 ? '' : 's'} shown · ${filter === 'pending' ? 'Awaiting your decision' : filter === 'created' ? 'Completed handoffs' : 'Request history'}`;
   if (flashId) { const el = document.getElementById('c-' + flashId); if (el) { el.classList.add('flash'); el.scrollIntoView({ behavior:'smooth' }); } }
 }
 
@@ -173,8 +270,8 @@ async function createApp(id, simulate, btn) {
     if (simulate) {
       await api(`/api/requests/${id}/simulate`, body);
       toast('App created (simulated) and secrets delivered');
-      filter = 'created';
-      document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.toggle('active', x.dataset.filter === 'created'));
+      drafts.delete(id);
+      setFilter('created');
       return refresh(id);
     }
     const { action_url, manifest } = await api(`/api/requests/${id}/start`, body);
@@ -190,9 +287,13 @@ async function createApp(id, simulate, btn) {
 async function reject(id) {
   const reason = prompt('Reason for rejection?');
   if (reason === null) return;
-  await api(`/api/requests/${id}/reject`, { reason }); toast('Rejected'); refresh();
+  try { await api(`/api/requests/${id}/reject`, { reason }); drafts.delete(id); toast('Rejected'); await refresh(); }
+  catch(e) { toast('Could not reject request: ' + e.message); }
 }
-async function reset(id) { await api(`/api/requests/${id}/reset`, {}); refresh(); }
+async function reset(id) {
+  try { await api(`/api/requests/${id}/reset`, {}); await refresh(); }
+  catch(e) { toast('Could not reset request: ' + e.message); }
+}
 
 (async () => {
   config = await api('/api/config');
@@ -200,13 +301,17 @@ async function reset(id) { await api(`/api/requests/${id}/reset`, {}); refresh()
     `<span class="pill">Vault: ${esc(config.vault_provider)}</span><span class="pill">Store: ${esc(config.store)}</span><span class="pill">GitHub: ${esc(config.github_web)}</span>` +
     (config.user ? `<span class="pill">👤 ${esc(config.user)}</span><a class="pill" href="/.auth/logout">Sign out</a>` : '');
   const done = location.hash.match(/^#done-(.+)$/);
-  if (done) { filter = 'created'; document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.toggle('active', x.dataset.filter === 'created')); toast('GitHub App created and secrets delivered'); }
+  if (done) { setFilter('created'); toast('GitHub App created and credentials handed off'); }
   await refresh(done?.[1] || location.hash.slice(1) || undefined);
   // Auto-refresh, but don't clobber an approver's in-progress selections.
   let lastTouch = 0;
   ['input', 'change', 'focusin'].forEach((ev) => document.addEventListener(ev, () => (lastTouch = Date.now())));
   setInterval(() => { if (!document.querySelector('details[open]') && Date.now() - lastTouch > 60000) refresh(); }, 10000);
-})();
+})().catch(e => {
+  const error = document.getElementById('error');
+  error.hidden = false; error.textContent = 'Could not load application configuration: ' + e.message;
+  document.getElementById('list').setAttribute('aria-busy', 'false');
+});
 </script>
 </body>
 </html>
