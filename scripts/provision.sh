@@ -18,6 +18,9 @@ TENANT_ID=$(az account show --query tenantId -o tsv)
 SUB_ID=$(az account show --query id -o tsv)
 echo "Subscription $SUB_ID | Tenant $TENANT_ID | RG $RG | App $APP_NAME"
 
+# Do not let a push deploy until the Azure resources and repo configuration are complete.
+gh variable set APP_FACTORY_ENABLED -R "$REPO" -b false
+
 ensure_app() { # name -> appId
   local id
   id=$(az ad app list --display-name "$1" --query "[0].appId" -o tsv)
@@ -76,5 +79,6 @@ gh variable set APP_FACTORY_URL       -R "$REPO" -b "$URL"
 printf '%s' "$INGEST_TOKEN" | gh secret set APP_FACTORY_INGEST_TOKEN -R "$REPO"
 gh label create github-app-request -R "$REPO" -c 0E8A16 -d "GitHub App creation request (IssueOps)" --force
 gh label create awaiting-approval  -R "$REPO" -c FBCA04 -d "Queued in GitHub App Factory, waiting for approver" --force
+gh variable set APP_FACTORY_ENABLED -R "$REPO" -b true
 
 echo "Done → $URL"
