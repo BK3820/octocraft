@@ -34,7 +34,7 @@ Repo settings (managed by `scripts/provision.sh`):
 
 | Name | Kind | Purpose |
 |---|---|---|
-| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | variable | OIDC federated identity `github-app-factory-deployer` (subject `ref:refs/heads/main`, *Website Contributor* on the app only) |
+| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | variable | OIDC federated identity `github-app-factory-deployer` (subject `repo:<owner>@<id>/<repo>@<id>:ref:refs/heads/main`, *Website Contributor* on the app only) |
 | `AZURE_FUNCTIONAPP_NAME`, `APP_FACTORY_URL` | variable | Deploy target / ingest URL |
 | `APP_FACTORY_INGEST_TOKEN` | secret | Bearer token for `/api/ingest` (source of truth: Key Vault secret `ingest-token`) |
 

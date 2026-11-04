@@ -37,7 +37,13 @@ echo "== Entra: GitHub Actions deployer (OIDC)"
 DEPLOY_APP_ID=$(ensure_app "github-app-factory-deployer")
 az ad sp show --id "$DEPLOY_APP_ID" >/dev/null 2>&1 || az ad sp create --id "$DEPLOY_APP_ID" >/dev/null
 DEPLOY_SP_ID=$(az ad sp show --id "$DEPLOY_APP_ID" --query id -o tsv)
-SUBJECT="repo:${REPO}:ref:refs/heads/main"
+# GitHub now issues immutable-ID subject claims: repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:...
+OWNER_ID=$(gh api "repos/${REPO}" --jq .owner.id)
+REPO_ID=$(gh api "repos/${REPO}" --jq .id)
+SUBJECT="repo:${REPO%%/*}@${OWNER_ID}/${REPO##*/}@${REPO_ID}:ref:refs/heads/main"
+for old in $(az ad app federated-credential list --id "$DEPLOY_APP_ID" --query "[?subject!='${SUBJECT}'].id" -o tsv); do
+  az ad app federated-credential delete --id "$DEPLOY_APP_ID" --federated-credential-id "$old"
+done
 if ! az ad app federated-credential list --id "$DEPLOY_APP_ID" --query "[?subject=='${SUBJECT}']" -o tsv | grep -q .; then
   az ad app federated-credential create --id "$DEPLOY_APP_ID" --parameters "{
     \"name\": \"github-main\",
