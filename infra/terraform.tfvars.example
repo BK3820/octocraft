@@ -1,0 +1,7 @@
+subscription_id       = "REPLACE_WITH_SUBSCRIPTION_ID"
+auth_client_id        = "REPLACE_WITH_ENTRA_UI_CLIENT_ID"
+deployer_principal_id = "REPLACE_WITH_ENTRA_DEPLOYER_OBJECT_ID"
+location              = "eastus2"
+resource_group_name   = "rg-github-app-factory"
+function_app_name     = "strawhat-ghapp-factory"
+allow_simulate        = false

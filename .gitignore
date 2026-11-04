@@ -3,3 +3,11 @@ node_modules/
 local.settings.json
 release.zip
 .DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+playwright-report/
+test-results/

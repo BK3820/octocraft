@@ -1,201 +1,209 @@
 # GitHub App Factory
 
-GitHub App Factory is an approval portal for creating GitHub Apps from **IssueOps** requests. A requester opens an issue, the workflow creates a pending manifest, and an approver uses the web UI to create the GitHub App and select credential delivery.
+**IssueOps request → reviewed manifest → GitHub App → secure credential handoff.**
 
-> **Current state:** Azure runtime resources are intentionally removed. The repository, infrastructure-as-code, Entra app registrations, and GitHub OIDC configuration are retained so the app can be recreated when needed.
+An approval workspace for creating GitHub Apps. GitHub issues are the ServiceNow stand-in for this POC. A workflow queues a manifest, a person confirms creation on GitHub, and the server stores the resulting credentials in Vault or prepares a ZIP outbox.
 
-## What the app does
+> **Deployment state:** Azure remains deleted. `APP_FACTORY_ENABLED=false`. The Terraform conversion has been formatted and validated, but **not applied to Azure**. GitHub currently refuses private-repository required reviewers and rulesets on the organization’s plan. An Enterprise-capable plan is needed for native private-repo deployment review. No billing or repository visibility change has been made.
 
-```text
-GitHub issue form
-  → IssueOps workflow builds a GitHub App manifest
-  → POST /api/ingest creates a pending request
-  → approver opens the web UI and clicks Create on GitHub
-  → GitHub App Manifest flow returns the app credentials
-  → credentials go to HashiCorp Vault / Azure Key Vault, or a ZIP in the outbox
+The `production` environment now exists, allows only `main`, and has admin bypass disabled. **Required reviewer enforcement is not installed yet** because GitHub rejected it. The workflow fails closed without that reviewer policy. Squash-only merging and automatic merged-branch deletion are configured.
+
+## End-to-end architecture at a glance
+
+```mermaid
+flowchart LR
+  Issue[GitHub issue form] --> Action[IssueOps Action]
+  Action -->|bearer + manifest| App[Azure HTTP Function]
+  Person[App approver] --> Entra[Entra / Easy Auth]
+  Entra --> UI[Approval UI]
+  UI --> App
+  App --> Table[Table: requests and status]
+  UI -->|form and confirmation| GitHub[GitHub App Manifest flow]
+  GitHub -->|callback code| App
+  App -->|one-time conversion| GitHub
+  App --> Vault[Key Vault / external Vault]
+  App --> Blob[Blob: ZIP draft outbox]
+  Packages[Blob: deployment package] --> App
+  App --> Monitoring[Insights + Log Analytics]
 ```
 
-Email delivery is **not automatic** yet. The email option writes a ZIP and `.eml` draft to the outbox. Add Azure Communication Services Email or SMTP, and encrypt the ZIP, before using that path in production.
+Storage serves runtime coordination, deployment packages, the request table and ZIP outbox. Key Vault holds credentials; Entra authenticates approvers; GitHub’s browser confirmation creates the actual app. [Architecture details](docs/architecture.md) trace every API call and trust boundary. [Cost details](docs/costs.md) show the billing meters and a roughly **$2.85/month** illustrative low-volume Azure subtotal, excluding GitHub plan seats/network/add-ons; this is not a spending cap.
 
-## Recreate the Azure deployment
+## UI preview
 
-Follow these steps in order when you are ready to deploy again.
+Screenshots below are generated from the actual local app with synthetic requests. They are not evidence of a live Azure deployment or of real GitHub Apps.
 
-### 1. Get the code and install dependencies
+### Approval queue
+
+![Dashboard with lifecycle, counts, search, filters, manifest details, and delivery controls](docs/images/dashboard.png)
+
+### Completed credential handoff
+
+![Simulated app with manifest and clearly labeled ZIP prepared but not emailed](docs/images/credential-handoff.png)
+
+### Mobile layout
+
+<img src="docs/images/mobile.png" alt="Responsive mobile request history" width="360">
+
+Refresh screenshots after UI changes with `npm run screenshots`. Email mode **does not send email**; it creates a ZIP and `.eml` draft. Vault is recommended.
+
+## Documentation map
+
+| Guide | Contents |
+|---|---|
+| [Architecture](docs/architecture.md) | System diagram, request sequence, each component, identities, data, endpoints, state transitions, failure boundaries |
+| [Cost model](docs/costs.md) | East US 2 USD retail rates, free grants, example calculations, billing meters, cost controls and exclusions |
+| [Operations](docs/operations.md) | Terraform lifecycle, state protection, deployment approvals, troubleshooting, rollback, teardown and production gaps |
+| [Contributing](CONTRIBUTING.md) | Branch strategy, commits, reviews, test checks, release policy, ownership and ruleset enforcement |
+| [Terraform](infra/main.tf) | Runtime infrastructure; replaces the former Bicep template |
+| [Main ruleset](.github/rulesets/main.json) | Version-controlled protection policy, applied through GitHub API after the plan upgrade |
+
+## Run locally
+
+Prerequisites: Node.js 22+, npm, Git. Terraform 1.10+ and Azure CLI are needed only for infrastructure.
 
 ```bash
 git clone https://github.com/StrawHat-Enterprise/github-app-factory.git
 cd github-app-factory
 npm ci
-npm test
+npm start
 ```
 
-### 2. Sign in and select the correct subscription
+In another terminal:
 
-You need Azure **Owner** or equivalent permission to create role assignments, plus GitHub admin permission on `StrawHat-Enterprise/github-app-factory`.
+```bash
+npm run seed
+```
+
+Open http://localhost:3000. Local files under `data/` are ignored by Git. Local mode has **no sign-in protection**; do not expose it publicly.
+
+For tests and screenshots:
+
+```bash
+npm test
+npx playwright install chromium
+npm run test:ui
+npm run screenshots
+terraform -chdir=infra init -backend=false
+terraform -chdir=infra fmt -check
+terraform -chdir=infra validate
+terraform -chdir=infra test
+```
+
+Browser tests start/stop their own server, use temporary data, and do not create GitHub Apps or Azure resources.
+
+## Recreate Azure later: step by step
+
+### 1. Finish the GitHub plan upgrade
+
+Keep this repository private. GitHub Team supports private branch protections, but native required environment reviewers for private repositories require an appropriate **Enterprise** plan. Check the [current GitHub feature matrix](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+### 2. Sign in and verify accounts
 
 ```bash
 az login
 az account set --subscription "Azure subscription 1"
-gh auth login
-```
-
-Verify the active account before continuing:
-
-```bash
-az account show --query '{subscription:name,tenant:tenantId,user:user.name}' --output json
+az account show --query '{subscription:name,tenant:tenantId,user:user.name}'
 gh auth status
 ```
 
-### 3. Choose names and region
+The provisioning operator needs Azure resource and role-assignment permissions (Owner or equivalent), permission to manage Entra app registrations, and GitHub repository administration rights.
 
-The defaults are:
-
-| Setting | Default |
-|---|---|
-| Resource group | `rg-github-app-factory` |
-| Region | `eastus2` |
-| Function App | `strawhat-ghapp-factory` |
-| Repository | `StrawHat-Enterprise/github-app-factory` |
-
-Override them only if needed:
+### 3. Configure repository protection
 
 ```bash
-export RG=rg-github-app-factory
-export LOCATION=eastus2
-export APP_NAME=strawhat-ghapp-factory
-export REPO=StrawHat-Enterprise/github-app-factory
+node scripts/configure-github.js
 ```
 
-### 4. Provision Azure and GitHub configuration
+This configures `production` with **BK3820 as required reviewer**, no admin bypass, deployment from `main` only, and PR/ruleset policy. It fails explicitly if GitHub refuses any required protection. `APP_FACTORY_ENABLED` stays false.
+
+Self-review for **deployment** is intentionally allowed so BK3820 can approve a run they initiated. PR self-approval is different: a second qualified maintainer is required when BK3820 authors a PR. See [Contributing](CONTRIBUTING.md).
+
+### 4. Choose a Terraform backend
+
+Local state is the POC default. It contains the ingestion token and potentially provider-returned sensitive values. Never commit it.
+
+For team use, create a separate private state account and adapt [backend.tf.example](infra/backend.tf.example). Keep backend resources outside the app resource group. Back up state before destroying anything. This extra storage is not created by the application template.
+
+### 5. Provision infrastructure with explicit confirmation
 
 ```bash
 ./scripts/provision.sh
 ```
 
-The script is idempotent. It:
+The script:
 
-1. Creates or reuses the Entra application for UI sign-in.
-2. Creates or reuses the GitHub Actions OIDC application and federated credential.
-3. Creates the Function App on Azure Functions Flex Consumption.
-4. Creates Storage, Key Vault, Application Insights, and Log Analytics.
-5. Grants the Function App managed identity only the roles it needs.
-6. Sets GitHub repository variables, the ingestion-token secret, and IssueOps labels.
-7. Sets `APP_FACTORY_ENABLED=true`, enabling deployment and IssueOps ingestion jobs.
+1. Pauses remote jobs and verifies repository approval policy before touching Azure.
+2. Reuses or creates UI and OIDC Entra registrations.
+3. Configures the deployer OIDC subject for **environment:production**, replacing branch-only credentials.
+4. Runs Terraform init, formatting check, validation, and interactive apply.
+5. Creates the runtime, storage, secrets, authentication and RBAC.
+6. Updates GitHub variables, ingestion-token secret and IssueOps labels.
+7. Leaves remote jobs disabled until you explicitly enable them.
 
-### 5. Deploy the application code
+Terraform generates new storage/vault names for this deployment. There is no remaining Bicep-managed runtime to import. Retained Entra registrations are managed by the script, not Terraform.
 
-Push a commit to `main`, or manually run **Build and deploy** from the repository’s Actions tab.
-
-```bash
-git push origin main
-```
-
-The [`deploy.yml`](.github/workflows/deploy.yml) workflow runs:
-
-```text
-npm ci → npm test → package Function App → Azure OIDC login → deploy → /api/health smoke test
-```
-
-No Azure password or publishing profile is stored in GitHub.
-
-### 6. Verify the app
+### 6. Enable and request a deployment
 
 ```bash
-curl -sS "https://${APP_NAME}.azurewebsites.net/api/health"
+gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b true
+gh workflow run deploy.yml -R StrawHat-Enterprise/github-app-factory --ref main
 ```
 
-Expected response:
+Only do this once the app resources exist. CI builds/tests first. The `approval` job then opens an issue titled **Deploy &lt;sha&gt; to production** and the run **waits** (up to 6 hours). Nothing touches Azure until BK3820 approves.
 
-```json
-{"ok":true,"store":"azure-table"}
-```
+Approval works in two layers:
 
-Open `https://${APP_NAME}.azurewebsites.net` in a browser and sign in with Entra ID. The UI is protected by App Service Authentication; only `/api/health` and the token-protected `/api/ingest` endpoint are public.
+| Layer | Works on current Free plan? | How BK3820 approves |
+|---|---|---|
+| `approval` job ([trstringer/manual-approval](https://github.com/trstringer/manual-approval), pinned by SHA) | **Yes** | Comment `approve` on the deployment issue (`deny`, or closing the issue, cancels) |
+| `production` environment required reviewer | Only after a plan upgrade (API returns 422 today) | Actions run → **Review deployments** → **Approve and deploy** |
 
-### 7. Create a GitHub App request
+Once `configure-github.js` succeeds after the upgrade, both layers apply.
 
-1. In the repository, select **Issues → New issue → GitHub App request**.
-2. Complete the app name, organization, homepage, permissions, webhook, and secret-delivery fields.
-3. Submit the issue.
-4. The [`issueops-github-app.yml`](.github/workflows/issueops-github-app.yml) workflow parses the form with [`scripts/issue-to-request.js`](scripts/issue-to-request.js), posts the manifest to the app, comments the request URL, and applies `awaiting-approval`.
-5. Sign in to the web UI, inspect the pending request, choose Vault or Email ZIP, and select **Create on GitHub →**.
-6. Confirm the GitHub App Manifest screen. GitHub redirects back to the app, which stores the returned credentials.
+### 7. Approve and verify
 
-To retry a failed request, correct the issue and remove then re-add the `github-app-request` label.
-
-## Pause or remove the deployment
-
-To stop remote deployments and IssueOps ingestion and delete the Azure runtime:
+Comment `approve` on the deployment issue the run opened. If the environment reviewer is also active (after the upgrade), open the run → **Review deployments** → `production` → **Approve and deploy**. Do not approve failed tests, unexplained permission changes, or the wrong commit.
 
 ```bash
+curl --fail https://strawhat-ghapp-factory.azurewebsites.net/api/health
+```
+
+Expected response: `{"ok":true,"store":"azure-table"}`. This checks handler availability, not storage/Key Vault readiness. Sign in through a browser and test an IssueOps request as well.
+
+### 8. Queue a GitHub App request
+
+Issues → New issue → **GitHub App request**. Fill the form and submit. The workflow posts the manifest, comments the review link and applies `awaiting-approval`.
+
+Open the web app, inspect permissions, choose a delivery destination, then select **Create on GitHub**. GitHub requires browser confirmation and appropriate organization rights. Merely submitting the issue never creates a GitHub App.
+
+## Pause and teardown
+
+```bash
+gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b false
 ./scripts/deprovision.sh --confirm
 ```
 
-This deletes **every resource** in `rg-github-app-factory`, including the Function App, Storage data and outbox ZIPs, Key Vault secrets, monitoring, and the Flex Consumption plan. It also purges the soft-deleted Key Vault so the same deployment names can be used again. Deleted data cannot be recovered.
+Terraform also asks you to confirm destruction. Use the same variables and state/backend as the original apply. Destruction removes only Terraform-managed runtime resources; the provider purges the POC Key Vault on destroy. Storage request history and outbox are deleted. The Entra registrations and GitHub repo survive.
 
-The script deliberately retains these no-cost identity/configuration items for a later rebuild:
+Do not delete the resource group manually after Terraform deployment: that bypasses its state. Read the [teardown and recovery procedure](docs/operations.md) first.
 
-- `github-app-factory-ui` Entra app registration
-- `github-app-factory-deployer` Entra app registration and GitHub OIDC federated credential
-- GitHub Actions variables, ingestion-token secret, labels, workflows, and source code
+## Configuration
 
-It also sets the repository variable `APP_FACTORY_ENABLED=false`. The build/test job can still run, but deployment and IssueOps ingestion jobs are skipped until `./scripts/provision.sh` enables them again.
+| Setting | Purpose |
+|---|---|
+| `APP_FACTORY_ENABLED` (GitHub variable) | Gates remote deployment/IssueOps jobs; false while Azure is removed |
+| `APP_FACTORY_INGEST_TOKEN` (GitHub secret) | IssueOps bearer credential; copied from sensitive Terraform output to GitHub without logging |
+| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | OIDC deployment identity configuration, not passwords |
+| `AZURE_FUNCTIONAPP_NAME`, `APP_FACTORY_URL` | Deployment and ingestion destinations |
+| `INGEST_TOKEN` (app setting) | Key Vault reference in Azure; dev token locally |
+| `STORAGE_ACCOUNT_NAME`, `REQUESTS_TABLE`, `OUTBOX_CONTAINER` | Table/Blob backends via managed identity |
+| `KEY_VAULT_URL` | GitHub credential storage in Azure Key Vault |
+| `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_KV_MOUNT`, `VAULT_PATH_PREFIX` | Optional external HashiCorp Vault; takes precedence over Key Vault |
+| `GITHUB_TOKEN` | Optional result comment; not configured automatically |
+| `BASE_URL`, `GITHUB_WEB_URL`, `GITHUB_API_URL` | Callback origin and GitHub/GHES destinations |
+| `ALLOW_SIMULATE` | True locally; Terraform defaults false for Azure |
 
-## Run locally
+## POC boundaries
 
-```bash
-npm ci
-npm start
-# In a second terminal:
-npm run seed
-```
-
-Browse to http://localhost:3000. Local mode uses `data/requests.json`, a mock Vault file, and `data/outbox/`; all are ignored by Git.
-
-To test a real HashiCorp Vault locally:
-
-```bash
-vault server -dev -dev-root-token-id=root
-VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root npm start
-```
-
-## Runtime configuration
-
-| Variable | Local default | Azure use |
-|---|---|---|
-| `INGEST_TOKEN` | `dev-ingest-token` | Key Vault reference for IssueOps/ServiceNow ingestion |
-| `BASE_URL` | Request origin | GitHub manifest callback URL |
-| `STORAGE_ACCOUNT_NAME` | Unset | Enables managed-identity Azure Table and Blob storage |
-| `REQUESTS_TABLE` / `OUTBOX_CONTAINER` | `apprequests` / `outbox` | Storage resource names |
-| `KEY_VAULT_URL` | Unset | Stores GitHub credentials in Azure Key Vault |
-| `VAULT_ADDR`, `VAULT_TOKEN` | Unset | Uses HashiCorp Vault instead of Key Vault |
-| `GITHUB_WEB_URL` / `GITHUB_API_URL` | `github.com` | GitHub Enterprise endpoints |
-| `GITHUB_TOKEN` | Unset | Optional comment back to the source issue |
-| `ALLOW_SIMULATE` | `true` | Shows simulated GitHub App creation for the POC |
-
-## ServiceNow integration later
-
-ServiceNow can use the same token-protected endpoint as the IssueOps workflow:
-
-```http
-POST /api/ingest
-Authorization: Bearer <INGEST_TOKEN>
-Content-Type: application/json
-```
-
-```json
-{
-  "owner_type": "org",
-  "owner": "StrawHat-Enterprise",
-  "secret_storage": "vault",
-  "requester": "jdoe",
-  "source": { "type": "servicenow", "ticket": "RITM0012345" },
-  "manifest": {
-    "name": "my-app",
-    "url": "https://example.com",
-    "default_permissions": { "contents": "read" },
-    "default_events": []
-  }
-}
-```
+Email is not sent or encrypted. Browser-created app credentials cannot currently be recovered automatically if the one-time conversion succeeds but delivery fails. Request updates are not transactional or concurrency-safe. The tenant-wide UI login policy is not an approver allowlist. These and other production gaps are explicitly listed in [Operations](docs/operations.md); this is a working POC, not a fully hardened provisioning service.

@@ -3,7 +3,6 @@ name: Build and deploy
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', '.github/ISSUE_TEMPLATE/**', 'infra/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,6 +15,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.1
+      - run: terraform -chdir=infra fmt -check
+      - run: terraform -chdir=infra init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra validate
+      - run: terraform -chdir=infra test
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
   build:
     runs-on: ubuntu-latest
     steps:
@@ -36,10 +57,39 @@ jobs:
           path: release.zip
           retention-days: 7
 
-  deploy:
-    if: vars.APP_FACTORY_ENABLED == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
+  approval:
+    # Plan-agnostic gate: works on GitHub Free private repos, where environment
+    # required reviewers are unavailable. Opens an issue and waits for BK3820.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.APP_FACTORY_ENABLED == 'true')
+    needs: [build, terraform, ui]
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - uses: trstringer/manual-approval@fa642940caf8412403569b28b2db4a1df08a83a3 # v1.13.1
+        with:
+          secret: ${{ github.token }}
+          approvers: BK3820
+          minimum-approvals: 1
+          issue-title: "Deploy ${{ github.sha }} to production"
+          issue-body: |
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Ref: `${{ github.ref }}` · Commit: `${{ github.sha }}` · Triggered by: @${{ github.actor }}
+
+            Comment **approve** to deploy or **deny** to cancel.
+          close-issue-means-denial: true
+          fail-on-denial: true
+  deploy:
+    if: vars.APP_FACTORY_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    needs: [build, approval]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.APP_FACTORY_URL }}
     permissions:
       id-token: write
       contents: read

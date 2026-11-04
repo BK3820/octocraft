@@ -1,0 +1,12 @@
+# Rename to backend.tf before first init to use a separately managed state account.
+# Provision the state account/container separately, using private access and Entra RBAC.
+# Do not put the backend in the resource group that this Terraform deployment destroys.
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-terraform-state"
+    storage_account_name = "REPLACE_WITH_STATE_ACCOUNT"
+    container_name       = "tfstate"
+    key                  = "github-app-factory.tfstate"
+    use_azuread_auth     = true
+  }
+}
