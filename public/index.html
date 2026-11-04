@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GitHub App Factory</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e;
+          --green:#238636; --blue:#1f6feb; --red:#da3633; --amber:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:16px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:20px; margin:0; }
+  header .meta { margin-left:auto; color:var(--muted); font-size:12px; display:flex; gap:12px; }
+  .pill { padding:2px 8px; border-radius:999px; border:1px solid var(--border); font-size:12px; }
+  main { max-width:1100px; margin:24px auto; padding:0 24px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { background:none; border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:6px; cursor:pointer; }
+  .tabs button.active { background:var(--blue); border-color:var(--blue); }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:14px; }
+  .card.flash { outline:2px solid var(--green); }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .title { font-size:16px; font-weight:600; }
+  .muted { color:var(--muted); }
+  .status-pending { color:var(--amber); border-color:var(--amber); }
+  .status-awaiting_github { color:#58a6ff; border-color:#58a6ff; }
+  .status-created { color:#3fb950; border-color:#3fb950; }
+  .status-rejected, .status-failed { color:#f85149; border-color:#f85149; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 24px; margin:12px 0; }
+  .grid div span { display:block; color:var(--muted); font-size:12px; }
+  code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  pre { background:#0b0f14; border:1px solid var(--border); padding:12px; border-radius:6px; overflow:auto; max-height:300px; }
+  .tag { display:inline-block; background:#21262d; border-radius:4px; padding:1px 6px; margin:2px 4px 2px 0; font-size:12px; }
+  .actions { border-top:1px solid var(--border); margin-top:12px; padding-top:12px; }
+  label { cursor:pointer; }
+  input[type=email] { background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:6px; min-width:240px; }
+  .btn { border:0; color:#fff; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:600; }
+  .btn.green { background:var(--green); } .btn.blue { background:var(--blue); } .btn.red { background:transparent; border:1px solid var(--red); color:#f85149; }
+  .btn.ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .result { background:#0f2a17; border:1px solid #2ea043; border-radius:6px; padding:10px 12px; margin-top:12px; }
+  .empty { text-align:center; padding:48px; color:var(--muted); border:1px dashed var(--border); border-radius:8px; }
+  #toast { position:fixed; bottom:24px; right:24px; background:var(--panel); border:1px solid var(--border); padding:10px 16px; border-radius:6px; display:none; }
+  a { color:#58a6ff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏭 GitHub App Factory</h1>
+  <span class="muted">Pending GitHub App requests from IssueOps / ServiceNow</span>
+  <div class="meta" id="meta"></div>
+</header>
+<main>
+  <div class="tabs">
+    <button data-filter="pending" class="active">Pending</button>
+    <button data-filter="created">Created</button>
+    <button data-filter="all">All</button>
+    <button class="btn ghost" style="margin-left:auto" onclick="refresh()">⟳ Refresh</button>
+  </div>
+  <div id="list"></div>
+</main>
+<div id="toast"></div>
+
+<script>
+let filter = 'pending';
+let config = {};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function toast(msg, ms = 3500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), ms);
+}
+
+document.querySelectorAll('.tabs [data-filter]').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.remove('active'));
+  b.classList.add('active'); filter = b.dataset.filter; refresh();
+});
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || (j.errors || []).join(', ') || r.statusText);
+  return j;
+}
+
+function sourceLink(r) {
+  const s = r.source || {};
+  if (s.type === 'issue' && s.url) return `<a href="${esc(s.url)}" target="_blank">${esc(s.repo)}#${esc(s.issue_number)}</a>`;
+  if (s.type === 'servicenow') return `SNOW ${esc(s.ticket)}`;
+  return esc(s.type || 'api');
+}
+
+function card(r) {
+  const m = r.manifest;
+  const perms = Object.entries(m.default_permissions || {}).map(([k,v]) => `<span class="tag">${esc(k)}:${esc(v)}</span>`).join('') || '<span class="muted">none</span>';
+  const events = (m.default_events || []).map((e) => `<span class="tag">${esc(e)}</span>`).join('') || '<span class="muted">none</span>';
+  const open = r.status === 'pending' || r.status === 'awaiting_github' || r.status === 'failed';
+
+  let actions = '';
+  if (open) {
+    actions = `
+    <div class="actions">
+      <div class="row" style="margin-bottom:10px">
+        <strong>Secret delivery:</strong>
+        <label><input type="radio" name="st-${r.id}" value="vault" ${r.secret_storage==='vault'?'checked':''}> 🔐 Vault (${esc(config.vault_provider)})</label>
+        <label><input type="radio" name="st-${r.id}" value="email" ${r.secret_storage==='email'?'checked':''}> 📧 Email as ZIP</label>
+        <input type="email" id="em-${r.id}" placeholder="recipient@company.com" value="${esc(r.notify_email || '')}">
+      </div>
+      <div class="row">
+        <button class="btn green" onclick="createApp('${r.id}', false, this)">Create on GitHub →</button>
+        ${config.allow_simulate ? `<button class="btn blue" onclick="createApp('${r.id}', true, this)">Simulate create (demo)</button>` : ''}
+        <button class="btn red" onclick="reject('${r.id}')">Reject</button>
+        ${r.status !== 'pending' ? `<button class="btn ghost" onclick="reset('${r.id}')">Reset</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  let result = '';
+  if (r.status === 'created') {
+    const d = r.delivery || {};
+    const deliv = d.method === 'vault'
+      ? `🔐 Stored in Vault: <code>${esc(d.location)}</code>${d.version ? ` (v${esc(d.version)})` : ''}`
+      : `📧 Emailed ZIP to <b>${esc(d.to)}</b> — <a href="/outbox/${esc(d.zipName)}">download zip</a> · <a href="/outbox/${esc(d.emlName)}">view .eml</a>`;
+    result = `<div class="result">✅ App <a href="${esc(r.app.html_url)}" target="_blank">${esc(r.app.slug)}</a> created — App ID <code>${esc(r.app.id)}</code>, Client ID <code>${esc(r.app.client_id)}</code>${r.simulated ? ' <span class="pill">simulated</span>' : ''}<br>${deliv}</div>`;
+  }
+  if (r.status === 'failed') result = `<div class="result" style="background:#2a0f0f;border-color:#f85149">❌ ${esc(r.error)}</div>`;
+
+  return `
+  <div class="card" id="c-${r.id}">
+    <div class="row">
+      <span class="title">${esc(m.name)}</span>
+      <span class="pill status-${esc(r.status)}">${esc(r.status.replace('_',' '))}</span>
+      <span class="muted" style="margin-left:auto">${new Date(r.created_at).toLocaleString()}</span>
+    </div>
+    <div class="muted">${esc(m.description || '')}</div>
+    <div class="grid">
+      <div><span>Owner</span>${r.owner_type === 'org' ? `org: <b>${esc(r.owner)}</b>` : 'personal account'}</div>
+      <div><span>Requester</span>${esc(r.requester || '—')}</div>
+      ${r.approved_by ? `<div><span>Approved by</span>${esc(r.approved_by)}</div>` : ''}
+      <div><span>Source</span>${sourceLink(r)}</div>
+      <div><span>Homepage</span><a href="${esc(m.url)}" target="_blank">${esc(m.url)}</a></div>
+      <div><span>Webhook</span>${m.hook_attributes ? esc(m.hook_attributes.url) : '<span class="muted">disabled</span>'}</div>
+      <div><span>Visibility</span>${m.public ? 'public' : 'private'}</div>
+    </div>
+    <div><span class="muted">Permissions:</span> ${perms}</div>
+    <div><span class="muted">Events:</span> ${events}</div>
+    <details style="margin-top:8px"><summary class="muted">View manifest</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
+    ${result}${actions}
+  </div>`;
+}
+
+async function refresh(flashId) {
+  const rows = await api('/api/requests');
+  const shown = rows.filter((r) => filter === 'all' || (filter === 'pending' ? r.status !== 'created' && r.status !== 'rejected' : r.status === filter));
+  document.querySelector('[data-filter=pending]').textContent = `Pending (${rows.filter((r) => !['created','rejected'].includes(r.status)).length})`;
+  document.getElementById('list').innerHTML = shown.length ? shown.map(card).join('') : '<div class="empty">No requests here. Open a <b>GitHub App request</b> issue (IssueOps) or run <code>scripts/simulate-issue.sh</code>.</div>';
+  if (flashId) { const el = document.getElementById('c-' + flashId); if (el) { el.classList.add('flash'); el.scrollIntoView({ behavior:'smooth' }); } }
+}
+
+function choice(id) {
+  const storage = document.querySelector(`input[name=st-${id}]:checked`)?.value;
+  const email = document.getElementById('em-' + id).value.trim();
+  if (!storage) throw new Error('Choose a secret delivery method');
+  if (storage === 'email' && !email) throw new Error('Enter a recipient email');
+  return { secret_storage: storage, notify_email: email || undefined };
+}
+
+async function createApp(id, simulate, btn) {
+  try {
+    const body = choice(id);
+    btn.disabled = true;
+    if (simulate) {
+      await api(`/api/requests/${id}/simulate`, body);
+      toast('App created (simulated) and secrets delivered');
+      filter = 'created';
+      document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.toggle('active', x.dataset.filter === 'created'));
+      return refresh(id);
+    }
+    const { action_url, manifest } = await api(`/api/requests/${id}/start`, body);
+    // GitHub App Manifest flow: POST the manifest to GitHub; user confirms; GitHub redirects to /callback.
+    const f = document.createElement('form');
+    f.method = 'post'; f.action = action_url;
+    const i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'manifest'; i.value = JSON.stringify(manifest);
+    f.appendChild(i); document.body.appendChild(f); f.submit();
+  } catch (e) { toast('⚠️ ' + e.message); btn.disabled = false; }
+}
+
+async function reject(id) {
+  const reason = prompt('Reason for rejection?');
+  if (reason === null) return;
+  await api(`/api/requests/${id}/reject`, { reason }); toast('Rejected'); refresh();
+}
+async function reset(id) { await api(`/api/requests/${id}/reset`, {}); refresh(); }
+
+(async () => {
+  config = await api('/api/config');
+  document.getElementById('meta').innerHTML =
+    `<span class="pill">Vault: ${esc(config.vault_provider)}</span><span class="pill">Store: ${esc(config.store)}</span><span class="pill">GitHub: ${esc(config.github_web)}</span>` +
+    (config.user ? `<span class="pill">👤 ${esc(config.user)}</span><a class="pill" href="/.auth/logout">Sign out</a>` : '');
+  const done = location.hash.match(/^#done-(.+)$/);
+  if (done) { filter = 'created'; document.querySelectorAll('.tabs [data-filter]').forEach((x) => x.classList.toggle('active', x.dataset.filter === 'created')); toast('GitHub App created and secrets delivered'); }
+  await refresh(done?.[1] || location.hash.slice(1) || undefined);
+  // Auto-refresh, but don't clobber an approver's in-progress selections.
+  let lastTouch = 0;
+  ['input', 'change', 'focusin'].forEach((ev) => document.addEventListener(ev, () => (lastTouch = Date.now())));
+  setInterval(() => { if (!document.querySelector('details[open]') && Date.now() - lastTouch > 60000) refresh(); }, 10000);
+})();
+</script>
+</body>
+</html>

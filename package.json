@@ -1,0 +1,23 @@
+{
+  "name": "github-app-factory",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Approve and create GitHub Apps from IssueOps/ServiceNow manifests; deliver secrets via Vault/Key Vault or emailed ZIP.",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:func": "func start",
+    "test": "node --test test/*.test.js",
+    "seed": "bash scripts/simulate-issue.sh acme-ci-bot vault && bash scripts/simulate-issue.sh release-notifier email && bash scripts/simulate-issue.sh security-scanner vault"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@azure/data-tables": "^13.3.2",
+    "@azure/functions": "^4.17.0",
+    "@azure/identity": "^4.14.1",
+    "@azure/keyvault-secrets": "^4.12.0",
+    "@azure/storage-blob": "^12.34.0"
+  }
+}

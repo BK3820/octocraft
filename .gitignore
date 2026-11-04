@@ -1,0 +1,5 @@
+data/
+node_modules/
+local.settings.json
+release.zip
+.DS_Store

@@ -1,0 +1,80 @@
+name: "GitHub App request"
+description: "Request a new GitHub App. An approver creates it from the GitHub App Factory."
+title: "[GitHub App] <app-name>"
+labels: ["github-app-request"]
+body:
+  - type: input
+    id: app_name
+    attributes:
+      label: App name
+      description: "Globally unique, max 34 characters"
+      placeholder: "acme-ci-bot"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+  - type: dropdown
+    id: owner_type
+    attributes:
+      label: Owner type
+      options: ["org", "user"]
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Organization
+      description: "Org login that will own the app (ignored for 'user')"
+      placeholder: "my-org"
+  - type: input
+    id: homepage_url
+    attributes:
+      label: Homepage URL
+      placeholder: "https://github.com/my-org/acme-ci-bot"
+    validations:
+      required: true
+  - type: input
+    id: webhook_url
+    attributes:
+      label: Webhook URL
+      description: "Leave empty to disable webhooks"
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions
+      description: "One per line as `permission: read|write`"
+      placeholder: |
+        contents: read
+        pull_requests: write
+        metadata: read
+    validations:
+      required: true
+  - type: checkboxes
+    id: events
+    attributes:
+      label: Webhook events
+      options:
+        - label: push
+        - label: pull_request
+        - label: issues
+        - label: issue_comment
+        - label: workflow_run
+        - label: release
+  - type: dropdown
+    id: secret_storage
+    attributes:
+      label: Secret delivery
+      options: ["vault", "email"]
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: notify_email
+    attributes:
+      label: Delivery email
+      description: "Required if Secret delivery is 'email'"

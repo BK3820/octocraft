@@ -1,0 +1,73 @@
+name: IssueOps - GitHub App request
+
+# Opening an issue with the "GitHub App request" form converts it into a GitHub App
+# manifest and pushes it to the App Factory web app as a new pending request.
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issueops-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  push-manifest:
+    if: >-
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'github-app-request')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'github-app-request')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build manifest and push to App Factory
+        uses: actions/github-script@v7
+        env:
+          FACTORY_URL: ${{ vars.APP_FACTORY_URL }}
+          FACTORY_TOKEN: ${{ secrets.APP_FACTORY_INGEST_TOKEN }}
+        with:
+          script: |
+            const { buildRequest } = require('./scripts/issue-to-request.js');
+            const issue = context.payload.issue;
+            const payload = buildRequest(issue, `${context.repo.owner}/${context.repo.repo}`);
+            core.info(`Manifest:\n${JSON.stringify(payload.manifest, null, 2)}`);
+
+            const res = await fetch(`${process.env.FACTORY_URL}/api/ingest`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${process.env.FACTORY_TOKEN}`,
+              },
+              body: JSON.stringify(payload),
+            });
+            const out = await res.json().catch(() => ({}));
+
+            if (res.status === 409) {
+              core.info(`Already queued: ${out.id}`);
+              return;
+            }
+
+            let msg;
+            if (res.status === 201) {
+              msg = [
+                '📥 **Request queued in GitHub App Factory** and waiting for approval.',
+                '',
+                `- Request ID: \`${out.id}\``,
+                `- Review: ${out.review_url}`,
+                '',
+                '<details><summary>Generated manifest</summary>',
+                '',
+                '```json',
+                JSON.stringify(payload.manifest, null, 2),
+                '```',
+                '</details>',
+              ].join('\n');
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: issue.number, labels: ['awaiting-approval'] });
+            } else {
+              msg = `❌ Could not queue request (HTTP ${res.status}). Please edit the issue and re-apply the \`github-app-request\` label.\n\n\`\`\`\n${JSON.stringify(out, null, 2)}\n\`\`\``;
+            }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: msg });
+            if (res.status !== 201) core.setFailed(`Factory returned ${res.status}`);
