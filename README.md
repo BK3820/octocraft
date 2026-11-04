@@ -150,11 +150,20 @@ gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b
 gh workflow run deploy.yml -R StrawHat-Enterprise/github-app-factory --ref main
 ```
 
-Only do this once the app resources and required environment reviewers are verified. CI builds/tests first, then an approval-policy check verifies BK3820 and no admin bypass. The deployment job references `production` and waits for GitHub’s **Review deployments** approval before acquiring an Azure OIDC token.
+Only do this once the app resources exist. CI builds/tests first. The `approval` job then opens an issue titled **Deploy &lt;sha&gt; to production** and the run **waits** (up to 6 hours). Nothing touches Azure until BK3820 approves.
+
+Approval works in two layers:
+
+| Layer | Works on current Free plan? | How BK3820 approves |
+|---|---|---|
+| `approval` job ([trstringer/manual-approval](https://github.com/trstringer/manual-approval), pinned by SHA) | **Yes** | Comment `approve` on the deployment issue (`deny`, or closing the issue, cancels) |
+| `production` environment required reviewer | Only after a plan upgrade (API returns 422 today) | Actions run → **Review deployments** → **Approve and deploy** |
+
+Once `configure-github.js` succeeds after the upgrade, both layers apply.
 
 ### 7. Approve and verify
 
-In Actions, open the run → **Review deployments** → select `production` → **Approve and deploy**. Do not approve failed tests, unexplained permission changes, or the wrong commit.
+Comment `approve` on the deployment issue the run opened. If the environment reviewer is also active (after the upgrade), open the run → **Review deployments** → `production` → **Approve and deploy**. Do not approve failed tests, unexplained permission changes, or the wrong commit.
 
 ```bash
 curl --fail https://strawhat-ghapp-factory.azurewebsites.net/api/health

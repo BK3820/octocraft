@@ -58,7 +58,7 @@ gh variable get APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory
 
 Expected environment policy: a `required_reviewers` rule for BK3820, admin bypass disabled, main-only deployment branch policy. A successful base environment creation without reviewers is **not** enough.
 
-The workflow’s `approval-policy` job rechecks reviewers/bypass before it can schedule deploy. If protection is missing or the API returns an error, it fails instead of deploying. Keep policy-changing workflows/CODEOWNERS behind review; no workflow can defend against an administrator intentionally replacing both policy and code outside governance.
+On the current Free plan, the reviewer API returns 422, so the workflow does not rely on the environment rule alone. Its `approval` job opens a deployment issue and blocks until BK3820 comments `approve`. A `deny` comment, a closed issue or the 6-hour timeout fails the job, and `deploy` never runs. Comments from anyone other than BK3820 are ignored. Keep policy-changing workflows/CODEOWNERS behind review; no workflow can defend against an administrator intentionally replacing both policy and code outside governance.
 
 ### OIDC subject
 
@@ -95,7 +95,7 @@ If setup fails, it leaves remote jobs disabled. Read the exact failed API/CLI ou
 | `build` | Unit tests and Linux deployment package | Actual GitHub App creation |
 | `terraform` | Formatting, provider installation, schema validation and mock-provider policy plan | Azure quota, permissions, applied state, managed identity propagation |
 | `ui` | Real Chromium, live local API, search/filter/sort, draft retention, simulate/outbox, mobile width, error display | Entra login or real one-time GitHub callback |
-| `approval-policy` | GitHub API persisted reviewer and no bypass | Reviewer’s diligence or Azure health |
+| `approval` | BK3820 explicitly commented `approve` on the run's deployment issue | Reviewer’s diligence or Azure health |
 | Production wait | Native GitHub review before job starts | Approval of individual app-creation requests |
 | `/api/health` | Function handler responds | Table/Vault/Blob readiness; this endpoint does not probe them |
 
@@ -111,7 +111,7 @@ If setup fails, it leaves remote jobs disabled. Read the exact failed API/CLI ou
 | Ingest 409 | Duplicate app name. Workflow intentionally does not re-comment. Edit request/name or use history; avoid duplicate create. |
 | Table/Blob 403 after apply | RBAC propagation or wrong principal/scope; inspect roles, wait, retry. Do not enable account keys. |
 | Web UI empty after recreation | Old Storage was deleted; prior GitHub issues remain but are not automatically replayed. Reapply intake label where appropriate. |
-| Job waits for approval | Expected. BK3820 must review `production`; no Azure login occurs before approval. |
+| Job waits for approval | Expected. BK3820 must comment `approve` on the deployment issue (and, after the upgrade, review `production`). No Azure login happens before approval. |
 | Job skips after push | Expected while disabled or on non-main refs. Manual dispatch on feature branches does not deploy. |
 | Callback invalid state | Request reset/restarted or mismatched/missing state. Do not disable validation. |
 | App exists but portal says waiting | Conversion may have succeeded before delivery failure. Reconcile GitHub app settings and rotate/recover credentials manually. |

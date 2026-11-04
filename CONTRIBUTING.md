@@ -87,8 +87,8 @@ These are separate decisions:
 
 1. PR review permits code to enter `main`.
 2. CI runs build, unit tests, Terraform validation and browser tests.
-3. If `APP_FACTORY_ENABLED=true`, approval-policy checks the real `production` reviewer configuration.
-4. GitHub pauses the deployment job at `production` for **BK3820**.
+3. On a `main` push with `APP_FACTORY_ENABLED=true` (or any manual dispatch), the `approval` job opens a deployment issue and waits for **BK3820** to comment `approve`.
+4. After the plan upgrade, GitHub also pauses the deployment job at the `production` environment for **BK3820**.
 5. Only approval releases that job to Azure OIDC login and code deployment.
 6. IssueOps requests are subsequently approved by a person in the web UI; that is a third independent decision.
 
