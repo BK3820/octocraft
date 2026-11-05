@@ -12,7 +12,7 @@ module.exports = defineConfig({
   use: { baseURL: 'http://127.0.0.1:3100', viewport: { width: 1440, height: 1100 } },
   globalTeardown: './test/browser/cleanup.js',
   webServer: {
-    command: 'node server.js',
+    command: 'go run ./cmd/server',
     url: 'http://127.0.0.1:3100/api/health',
     reuseExistingServer: false,
     env: {

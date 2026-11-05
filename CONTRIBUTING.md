@@ -40,7 +40,7 @@ The current organization plan has refused enforcement for this private repositor
 | Dismiss stale approvals | New changes must be reviewed again |
 | Last push approval required | The person pushing the final changes cannot be the only approver |
 | Resolve review threads | Do not merge unresolved discussions |
-| `build`, `terraform`, `ui` checks from GitHub Actions | Unit/package, infrastructure validation, browser behavior |
+| `build`, `terraform`, `ui` checks from GitHub Actions | Go tests/package and container smoke test, infrastructure validation, browser behavior |
 | Branch must be up to date | Test changes against latest main before merge |
 | Linear history | Squash commits for reviewable rollback/history |
 | Block deletion and force pushes | Protect the release branch |
@@ -51,10 +51,14 @@ The current organization plan has refused enforcement for this private repositor
 ## Required local validation
 
 ```bash
+go test ./...
+go vet ./...
 npm ci
 npm test
 npx playwright install chromium
 npm run test:ui
+docker compose config -q
+docker build -t github-app-factory:local .
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
 terraform -chdir=infra validate
@@ -63,10 +67,10 @@ bash -n scripts/provision.sh scripts/deprovision.sh
 git diff --check
 ```
 
-- Backend behavior: add/adjust Node tests for validation, statuses, credentials and API responses.
+- Backend behavior: add/adjust Go tests for validation, statuses, credentials and API responses. Keep the Node IssueOps parser covered by its focused test.
 - UI changes: keep keyboard focus, labels, mobile layout, loading/error states and draft preservation. Run `npm run screenshots` and commit refreshed images with the UI.
 - Infrastructure: include `terraform plan` review when an environment exists. CI does not run apply or authenticated cloud plans.
-- Dependency changes: commit the npm lockfile. Provider changes: commit the Terraform lockfile with both `linux_amd64` and `darwin_arm64` checksums.
+- Dependency changes: commit `go.mod`/`go.sum` for Go and the npm lockfile for the IssueOps helper/browser tests. Provider changes: commit the Terraform lockfile with both `linux_amd64` and `darwin_arm64` checksums.
 - Do not check in `.terraform/`, state, tfvars containing account IDs/secrets, plan files, local test data, ZIPs, PEMs or credentials.
 - Never apply/destroy Azure resources just to test a documentation/UI change.
 

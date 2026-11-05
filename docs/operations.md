@@ -8,11 +8,15 @@
 - `APP_FACTORY_ENABLED=false` protects deployment and IssueOps jobs from contacting removed services.
 - GitHub’s existing plan rejects private rulesets and required deployment reviewers. Upgrade to the appropriate Enterprise plan before enabling deployment.
 - The production environment exists with main-only branches and admin bypass disabled, but no required-reviewer rule yet. Squash-only merging and merged-branch deletion are already configured.
-- Infrastructure is managed interactively by Terraform; the GitHub pipeline deploys **application code only**, not infrastructure.
+- Infrastructure is managed interactively by Terraform; the GitHub pipeline deploys **Go Functions application code only**, not infrastructure.
+- The Function App is configured for the native Go `1.0` worker on Linux Flex Consumption. Go packaging requires Core Tools 4.12 or later, which currently prints a preview warning.
+- CI builds the Functions ZIP for deployment and separately builds/runs the standalone Docker image as a health check. The image is not pushed to a registry or deployed by this workflow.
 
 ## Terraform inventory and state
 
-Providers are locked: AzureRM for native Azure resources, AzAPI for management-plane Blob/table/secret creation, Random for globally unique names and ingestion token.
+Providers are locked: AzureRM for native Azure resources, AzAPI for management-plane Blob/table/secret creation and the native Go runtime patch, Random for globally unique names and ingestion token.
+
+AzureRM currently excludes `go` from its Flex Consumption runtime enum even though Azure supports `functionAppConfig.runtime = { name = "go", version = "1.0" }`. Terraform therefore creates the Function App with the provider's `custom` bootstrap value and AzAPI immediately patches it to Go in the same apply. The AzureRM lifecycle ignores those two stale provider fields; [runtime.tftest.hcl](../infra/tests/runtime.tftest.hcl) asserts the authoritative AzAPI runtime and prevents an accidental `FUNCTIONS_WORKER_RUNTIME` app setting.
 
 Managed resources: resource group, Storage, two Blob containers, Table, Flex plan and Function App, authentication, vault/ingest secret, Insights/workspace, and scoped role assignments. Entra registrations and GitHub policies are script-managed, not Terraform-managed.
 
@@ -92,7 +96,7 @@ If setup fails, it leaves remote jobs disabled. Read the exact failed API/CLI ou
 
 | Check | Evidence | Not proof of |
 |---|---|---|
-| `build` | Unit tests and Linux deployment package | Actual GitHub App creation |
+| `build` | Go and IssueOps parser tests, Go vet, Linux Functions ZIP, Docker build and container health smoke test | Actual GitHub App creation |
 | `terraform` | Formatting, provider installation, schema validation and mock-provider policy plan | Azure quota, permissions, applied state, managed identity propagation |
 | `ui` | Real Chromium, live local API, search/filter/sort, draft retention, simulate/outbox, mobile width, error display | Entra login or real one-time GitHub callback |
 | `approval` | BK3820 explicitly commented `approve` on the run's deployment issue | Reviewer’s diligence or Azure health |

@@ -2,18 +2,18 @@
 
 **IssueOps request → reviewed manifest → GitHub App → secure credential handoff.**
 
-An approval workspace for creating GitHub Apps. GitHub issues are the ServiceNow stand-in for this POC. A workflow queues a manifest, a person confirms creation on GitHub, and the server stores the resulting credentials in Vault or prepares a ZIP outbox.
+An approval workspace for creating GitHub Apps. GitHub issues are the ServiceNow stand-in for this POC. A workflow queues a manifest, a person confirms creation on GitHub, and the Go service stores the resulting credentials in Vault or prepares a ZIP outbox. The UI remains static HTML/CSS/JavaScript; the API, persistence and credential-delivery backend are Go.
 
-> **Deployment state:** Azure remains deleted. `APP_FACTORY_ENABLED=false`. The Terraform conversion has been formatted and validated, but **not applied to Azure**. GitHub currently refuses private-repository required reviewers and rulesets on the organization’s plan. An Enterprise-capable plan is needed for native private-repo deployment review. No billing or repository visibility change has been made.
+> **Deployment state:** Azure remains deleted. `APP_FACTORY_ENABLED=false`. The Terraform Go runtime and deployment pipeline have **not been applied to Azure**. GitHub currently refuses private-repository required reviewers and rulesets on the organization’s plan. The workflow's issue-based approval gate still works on the current plan; an Enterprise-capable plan is needed for GitHub's native private-repo deployment review. No billing or repository visibility change has been made.
 
-The `production` environment now exists, allows only `main`, and has admin bypass disabled. **Required reviewer enforcement is not installed yet** because GitHub rejected it. The workflow fails closed without that reviewer policy. Squash-only merging and automatic merged-branch deletion are configured.
+The `production` environment now exists, allows only `main`, and has admin bypass disabled. **Required reviewer enforcement is not installed yet** because GitHub rejected it. CI must pass and BK3820 must approve the deployment issue before Azure login; after a plan upgrade, the environment can add native review as a second gate. Squash-only merging and automatic merged-branch deletion are configured.
 
 ## End-to-end architecture at a glance
 
 ```mermaid
 flowchart LR
   Issue[GitHub issue form] --> Action[IssueOps Action]
-  Action -->|bearer + manifest| App[Azure HTTP Function]
+  Action -->|bearer + manifest| App[Go Azure HTTP Function]
   Person[App approver] --> Entra[Entra / Easy Auth]
   Entra --> UI[Approval UI]
   UI --> App
@@ -28,6 +28,8 @@ flowchart LR
 ```
 
 Storage serves runtime coordination, deployment packages, the request table and ZIP outbox. Key Vault holds credentials; Entra authenticates approvers; GitHub’s browser confirmation creates the actual app. [Architecture details](docs/architecture.md) trace every API call and trust boundary. [Cost details](docs/costs.md) show the billing meters and a roughly **$2.85/month** illustrative low-volume Azure subtotal, excluding GitHub plan seats/network/add-ons; this is not a spending cap.
+
+The Azure deployment uses the native Go worker on Linux Flex Consumption. The separate Docker image runs the same Go HTTP handler as a standalone container for local use or another container host; the current Azure workflow deploys a Functions ZIP, not that image.
 
 ## UI preview
 
@@ -55,42 +57,68 @@ Refresh screenshots after UI changes with `npm run screenshots`. Email mode **do
 | [Cost model](docs/costs.md) | East US 2 USD retail rates, free grants, example calculations, billing meters, cost controls and exclusions |
 | [Operations](docs/operations.md) | Terraform lifecycle, state protection, deployment approvals, troubleshooting, rollback, teardown and production gaps |
 | [Contributing](CONTRIBUTING.md) | Branch strategy, commits, reviews, test checks, release policy, ownership and ruleset enforcement |
-| [Terraform](infra/main.tf) | Runtime infrastructure; replaces the former Bicep template |
+| [Terraform](infra/main.tf) | Linux Flex Consumption Go runtime and supporting infrastructure |
+| [Dockerfile](Dockerfile) / [Compose](compose.yaml) | Hardened standalone Go container and local persistent data volume |
 | [Main ruleset](.github/rulesets/main.json) | Version-controlled protection policy, applied through GitHub API after the plan upgrade |
 
 ## Run locally
 
-Prerequisites: Node.js 22+, npm, Git. Terraform 1.10+ and Azure CLI are needed only for infrastructure.
+Prerequisites: Go 1.27+, Git. Docker Compose is optional. Node.js 22+ and npm are needed only for the IssueOps helper, parser test and Playwright UI tests. Terraform 1.10+ and Azure CLI are needed only for infrastructure.
 
 ```bash
 git clone https://github.com/StrawHat-Enterprise/github-app-factory.git
 cd github-app-factory
-npm ci
-npm start
+go mod download
+go run ./cmd/server
 ```
 
-In another terminal:
+Open http://localhost:3000. Local files under `data/` are ignored by Git. Local mode has **no sign-in protection**; the server binds to all interfaces, so do not expose it publicly.
+
+### Run the container
 
 ```bash
+docker compose up --build --detach
+```
+
+Open http://localhost:3000. Compose binds only to localhost, runs as a non-root user with a read-only root filesystem, and stores local requests/outbox data in the persistent `factory-data` volume. View logs with `docker compose logs -f app`; stop it with `docker compose down`. `docker compose down --volumes` also permanently removes the local data volume.
+
+This Dockerfile is for the standalone HTTP server, not the Azure Functions host. The Azure workflow packages the Go Functions worker separately. Azure Functions runs Go on Linux Flex Consumption with runtime `go` version `1.0`; Core Tools 4.12 or later builds/packages the Linux x64 binary. Core Tools 4.12 currently prints a Go preview warning during packaging, so recheck Azure support before creating resources. No registry is required for the Functions ZIP deployment.
+
+### Seed and test locally
+
+Install Node tooling before using the IssueOps seed helper:
+
+```bash
+npm ci
 npm run seed
 ```
 
-Open http://localhost:3000. Local files under `data/` are ignored by Git. Local mode has **no sign-in protection**; do not expose it publicly.
+The Azure Functions worker can also be run locally with Core Tools 4.12+:
+
+```bash
+cp local.settings.example.json local.settings.json
+func start
+```
 
 For tests and screenshots:
 
 ```bash
+go test ./...
+go vet ./...
+npm ci
 npm test
 npx playwright install chromium
 npm run test:ui
 npm run screenshots
+docker compose config -q
+docker build -t github-app-factory:local .
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
 terraform -chdir=infra validate
 terraform -chdir=infra test
 ```
 
-Browser tests start/stop their own server, use temporary data, and do not create GitHub Apps or Azure resources.
+Browser tests start/stop the Go server, use temporary data, and do not create GitHub Apps or Azure resources. `npm test` runs Go unit tests and the small Node-based IssueOps parser test.
 
 ## Recreate Azure later: step by step
 
@@ -196,6 +224,7 @@ Do not delete the resource group manually after Terraform deployment: that bypas
 | `APP_FACTORY_INGEST_TOKEN` (GitHub secret) | IssueOps bearer credential; copied from sensitive Terraform output to GitHub without logging |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | OIDC deployment identity configuration, not passwords |
 | `AZURE_FUNCTIONAPP_NAME`, `APP_FACTORY_URL` | Deployment and ingestion destinations |
+| `PORT`, `DATA_DIR` | Standalone HTTP server listen port and local/volume-backed data directory |
 | `INGEST_TOKEN` (app setting) | Key Vault reference in Azure; dev token locally |
 | `STORAGE_ACCOUNT_NAME`, `REQUESTS_TABLE`, `OUTBOX_CONTAINER` | Table/Blob backends via managed identity |
 | `KEY_VAULT_URL` | GitHub credential storage in Azure Key Vault |

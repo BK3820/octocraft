@@ -10,7 +10,7 @@ These reference rates were checked against Microsoft’s [Retail Prices API](htt
 
 | Component / configuration | What drives billing | Reference retail rate / estimate |
 |---|---|---|
-| Functions Flex **on demand**, Node 22, 2 GB, no always ready | Active instance memory-time in GB-seconds + executions; concurrent requests share instance time | $0.000026/GB-s and $0.40/million executions; eligible paid subscriptions get 100,000 GB-s + 250,000 executions monthly across Flex on-demand apps |
+| Functions Flex **on demand**, Go 1.27, 2 GB, no always ready | Active instance memory-time in GB-seconds + executions; concurrent requests share instance time | $0.000026/GB-s and $0.40/million executions; eligible paid subscriptions get 100,000 GB-s + 250,000 executions monthly across Flex on-demand apps |
 | FC1 plan | Hosting configuration, not a fixed reserved server | No separate always-on base fee in this configuration; execution meters above |
 | Blob Hot LRS, GPv2 | Average GB stored, write/read/list transactions, downloads/egress, retained deployments | First capacity band $0.0184/GB-month; writes $0.05/10k; reads $0.004/10k reference |
 | Table Standard LRS | Average GB of manifests/history + read/write/query transactions | About $0.045/GB-month and $0.00036/10k standard transactions; account-encrypted table products have different operation rates and must not be substituted |

@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "native",
+    "FUNCTIONS_CLI_NATIVE_LANGUAGE": "go",
+    "DATA_DIR": "data",
+    "INGEST_TOKEN": "dev-ingest-token",
+    "ALLOW_SIMULATE": "true"
+  }
+}
