@@ -61,24 +61,24 @@ jobs:
       - name: Validate Helm chart
         run: bash test/helm-chart.sh
       - name: Build container image
-        run: docker build --tag github-app-factory:${{ github.sha }} .
+        run: docker build --tag octocraft:${{ github.sha }} .
       - name: Container health smoke test
         run: |
-          docker run --detach --name github-app-factory-container-test \
+          docker run --detach --name octocraft-container-test \
             --publish 127.0.0.1:3100:3000 \
             --mount type=tmpfs,destination=/data,tmpfs-mode=1777 \
             --env DATA_DIR=/data \
             --env INGEST_TOKEN=container-test-only \
             --env ALLOW_SIMULATE=true \
-            github-app-factory:${{ github.sha }}
-          trap 'docker rm -f github-app-factory-container-test >/dev/null 2>&1 || true' EXIT
+            octocraft:${{ github.sha }}
+          trap 'docker rm -f octocraft-container-test >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:3100/api/health; then
               exit 0
             fi
             sleep 2
           done
-          docker logs github-app-factory-container-test
+          docker logs octocraft-container-test
           exit 1
 
   release:
@@ -93,7 +93,7 @@ jobs:
       contents: write
       packages: write
     env:
-      CHART_DIR: charts/github-app-factory
+      CHART_DIR: charts/octocraft
     steps:
       - uses: actions/checkout@v7
         with:
@@ -106,8 +106,8 @@ jobs:
         id: names
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "image=ghcr.io/${owner}/github-app-factory" >> "$GITHUB_OUTPUT"
-          echo "charts=oci://ghcr.io/${owner}/github-app-factory-charts" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${owner}/octocraft" >> "$GITHUB_OUTPUT"
+          echo "charts=oci://ghcr.io/${owner}/octocraft-charts" >> "$GITHUB_OUTPUT"
           echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v3
         if: steps.version.outputs.skip != 'true'
@@ -146,7 +146,7 @@ jobs:
           mkdir -p dist
           helm package "$CHART_DIR" --version "$VERSION" --app-version "$VERSION" --destination dist
           echo "${{ github.token }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
-          helm push "dist/github-app-factory-${VERSION}.tgz" "$CHARTS"
+          helm push "dist/octocraft-${VERSION}.tgz" "$CHARTS"
       - name: Create GitHub Release
         if: steps.version.outputs.skip != 'true'
         env:
@@ -161,17 +161,17 @@ jobs:
           | Artifact | Reference |
           | --- | --- |
           | Container image | \`${IMAGE}:${VERSION}\` (linux/amd64, linux/arm64) |
-          | Helm chart | \`${CHARTS}/github-app-factory\` version \`${VERSION}\` |
+          | Helm chart | \`${CHARTS}/octocraft\` version \`${VERSION}\` |
           | Commit | \`${GITHUB_SHA}\` |
 
           ## Install
 
           \`\`\`bash
-          helm upgrade --install github-app-factory ${CHARTS}/github-app-factory \\
-            --version ${VERSION} --namespace github-app-factory --create-namespace \\
+          helm upgrade --install octocraft ${CHARTS}/octocraft \\
+            --version ${VERSION} --namespace octocraft --create-namespace \\
             --values values-aks.yaml
           \`\`\`
           NOTES
-          gh release create "v${VERSION}" "dist/github-app-factory-${VERSION}.tgz" \
+          gh release create "v${VERSION}" "dist/octocraft-${VERSION}.tgz" \
             --target "$GITHUB_SHA" --title "v${VERSION}" \
             --notes-file notes.md --generate-notes

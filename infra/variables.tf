@@ -4,7 +4,7 @@ variable "subscription_id" {
 }
 variable "resource_group_name" {
   type    = string
-  default = "rg-github-app-factory"
+  default = "rg-octocraft"
 }
 variable "location" {
   type    = string
@@ -12,7 +12,7 @@ variable "location" {
 }
 variable "function_app_name" {
   type    = string
-  default = "strawhat-ghapp-factory"
+  default = "strawhat-octocraft"
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,30}[a-z0-9]$", var.function_app_name))
     error_message = "Choose a globally unique lowercase Function App name of 3-32 characters."

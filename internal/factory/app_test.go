@@ -279,8 +279,15 @@ func TestManifestFlowValidatesStateAndCompletesCallback(t *testing.T) {
 
 func TestDashboardHealthConfigAndRequestBodyLimit(t *testing.T) {
 	app, _, _ := testApp(t, nil)
-	if response := callApp(t, app, http.MethodGet, "/", nil, nil); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "GitHub App Factory") {
+	if response := callApp(t, app, http.MethodGet, "/", nil, nil); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "OctoCraft") {
 		t.Fatalf("dashboard response = %d", response.Code)
+	}
+	logomark := callApp(t, app, http.MethodGet, "/assets/octocraft-logo.png", nil, nil)
+	if logomark.Code != http.StatusOK || logomark.Header().Get("Content-Type") != "image/png" || !bytes.HasPrefix(logomark.Body.Bytes(), []byte("\x89PNG\r\n\x1a\n")) {
+		t.Fatalf("logo response = %d %q", logomark.Code, logomark.Header().Get("Content-Type"))
+	}
+	if response := callApp(t, app, http.MethodGet, "/assets/not-found.png", nil, nil); response.Code != http.StatusNotFound {
+		t.Fatalf("missing asset status = %d, want %d", response.Code, http.StatusNotFound)
 	}
 	health := callApp(t, app, http.MethodGet, "/api/health", nil, nil)
 	if health.Code != http.StatusOK || !strings.Contains(health.Body.String(), `"store":"local"`) {

@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/strawhat-enterprise/github-app-factory/internal/factory"
+	"github.com/strawhat-enterprise/octocraft/internal/factory"
 )
 
 func main() {
 	app, err := factory.New(factory.Config{})
 	if err != nil {
-		log.Fatalf("initialize GitHub App Factory: %v", err)
+		log.Fatalf("initialize OctoCraft: %v", err)
 	}
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -43,8 +43,8 @@ func main() {
 		}
 	}()
 
-	log.Printf("GitHub App Factory running at http://%s (store: %s)", addr, app.StoreKind())
+	log.Printf("OctoCraft running at http://%s (store: %s)", addr, app.StoreKind())
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(fmt.Errorf("serve GitHub App Factory: %w", err))
+		log.Fatal(fmt.Errorf("serve OctoCraft: %w", err))
 	}
 }

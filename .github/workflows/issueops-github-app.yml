@@ -56,7 +56,7 @@ jobs:
             let msg;
             if (res.status === 201) {
               msg = [
-                '📥 **Request queued in GitHub App Factory** and waiting for approval.',
+                '📥 **Request queued in OctoCraft** and waiting for approval.',
                 '',
                 `- Request ID: \`${out.id}\``,
                 `- Review: ${out.review_url}`,

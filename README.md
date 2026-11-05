@@ -1,4 +1,8 @@
-# GitHub App Factory
+# OctoCraft
+
+<p align="center">
+  <img src="public/assets/octocraft-logo.png" alt="OctoCraft" width="360">
+</p>
 
 **IssueOps request → reviewed manifest → GitHub App → secure credential handoff.**
 
@@ -59,7 +63,7 @@ Refresh screenshots after UI changes with `npm run screenshots`. Email mode **do
 | [Contributing](CONTRIBUTING.md) | Branch strategy, commits, reviews, test checks, release policy, ownership and ruleset enforcement |
 | [Terraform](infra/main.tf) | Linux Flex Consumption Go runtime and supporting infrastructure |
 | [Dockerfile](Dockerfile) / [Compose](compose.yaml) | Hardened standalone Go container and local persistent data volume |
-| [Helm chart](charts/github-app-factory/README.md) | Internal-only Kubernetes deployment: PVC data and Key Vault credentials, no Storage Account |
+| [Helm chart](charts/octocraft/README.md) | Internal-only Kubernetes deployment: PVC data and Key Vault credentials, no Storage Account |
 | [Main ruleset](.github/rulesets/main.json) | Version-controlled protection policy, applied through GitHub API after the plan upgrade |
 
 ## Run locally
@@ -67,8 +71,8 @@ Refresh screenshots after UI changes with `npm run screenshots`. Email mode **do
 Prerequisites: Go 1.27+, Git. Docker Compose is optional. Node.js 22+ and npm are needed only for the IssueOps helper, parser test and Playwright UI tests. Terraform 1.10+ and Azure CLI are needed only for infrastructure.
 
 ```bash
-git clone https://github.com/StrawHat-Enterprise/github-app-factory.git
-cd github-app-factory
+git clone https://github.com/StrawHat-Enterprise/octocraft.git
+cd octocraft
 go mod download
 go run ./cmd/server
 ```
@@ -87,9 +91,9 @@ This Dockerfile is for the standalone HTTP server, not the Azure Functions host.
 
 ### Helm chart for Kubernetes / AKS
 
-[charts/github-app-factory](charts/github-app-factory/README.md) packages the Go container with a retained PVC for request data and Azure Key Vault for generated credentials. The [AKS example profile](charts/github-app-factory/values-aks.example.yaml) uses a managed disk (`managed-csi`), **not a Storage Account**, and accesses Key Vault through Workload Identity. Email/ZIP delivery is disabled in this deployment; input tokens are mounted as read-only Secret files.
+[charts/octocraft](charts/octocraft/README.md) packages the Go container with a retained PVC for request data and Azure Key Vault for generated credentials. The [AKS example profile](charts/octocraft/values-aks.example.yaml) uses a managed disk (`managed-csi`), **not a Storage Account**, and accesses Key Vault through Workload Identity. Email/ZIP delivery is disabled in this deployment; input tokens are mounted as read-only Secret files.
 
-The chart is **not deployed** and does not provision AKS. It requires real Key Vault/Workload Identity configuration, an existing ingestion-token Secret and an updated reachable image. It intentionally has no public ingress or autoscaler: the standalone container lacks browser authentication, and multiple replicas are not yet safe for concurrent request updates. See the [chart guide](charts/github-app-factory/README.md) for prerequisites, install commands, authentication boundaries and data-retention details. The separate Functions Terraform and GitHub deployment still use a Storage Account; they have not been removed.
+The chart is **not deployed** and does not provision AKS. It requires real Key Vault/Workload Identity configuration, an existing ingestion-token Secret and an updated reachable image. It intentionally has no public ingress or autoscaler: the standalone container lacks browser authentication, and multiple replicas are not yet safe for concurrent request updates. See the [chart guide](charts/octocraft/README.md) for prerequisites, install commands, authentication boundaries and data-retention details. The separate Functions Terraform and GitHub deployment still use a Storage Account; they have not been removed.
 
 ### Releases: versioned image + Helm chart
 
@@ -98,15 +102,15 @@ Every merge to `main` runs [ci.yml](.github/workflows/ci.yml). After `terraform`
 | Artifact | Location |
 |---|---|
 | Git tag + GitHub Release | `vX.Y.Z`, with the chart `.tgz` attached and generated notes |
-| Container image (amd64 + arm64) | `ghcr.io/strawhat-enterprise/github-app-factory:X.Y.Z` and `:sha-<short>` |
-| Helm chart (OCI) | `oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory --version X.Y.Z` |
+| Container image (amd64 + arm64) | `ghcr.io/strawhat-enterprise/octocraft:X.Y.Z` and `:sha-<short>` |
+| Helm chart (OCI) | `oci://ghcr.io/strawhat-enterprise/octocraft-charts/octocraft --version X.Y.Z` |
 
-[scripts/next-version.sh](scripts/next-version.sh) picks the version. The patch version is bumped on every merge. To release a minor or major version, raise `version`/`appVersion` in [Chart.yaml](charts/github-app-factory/Chart.yaml) in the PR. A commit that is already tagged is skipped.
+[scripts/next-version.sh](scripts/next-version.sh) picks the version. The patch version is bumped on every merge. To release a minor or major version, raise `version`/`appVersion` in [Chart.yaml](charts/octocraft/Chart.yaml) in the PR. A commit that is already tagged is skipped.
 
 ```bash
-helm show chart oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory --version 0.1.0
-helm upgrade --install factory oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory \
-  --version 0.1.0 --namespace factory -f /secure/path/aks-values.yaml
+helm show chart oci://ghcr.io/strawhat-enterprise/octocraft-charts/octocraft --version 0.2.0
+helm upgrade --install octocraft oci://ghcr.io/strawhat-enterprise/octocraft-charts/octocraft \
+  --version 0.2.0 --namespace octocraft --create-namespace -f /secure/path/aks-values.yaml
 ```
 
 The packages are private like the repository. Run `helm registry login ghcr.io` with a `read:packages` token, and give AKS an `imagePullSecrets` entry (or mirror the image to ACR).
@@ -138,7 +142,7 @@ npx playwright install chromium
 npm run test:ui
 npm run screenshots
 docker compose config -q
-docker build -t github-app-factory:local .
+docker build -t octocraft:local .
 bash test/helm-chart.sh
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
@@ -202,8 +206,8 @@ Terraform generates new storage/vault names for this deployment. There is no rem
 ### 6. Enable and request a deployment
 
 ```bash
-gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b true
-gh workflow run deploy.yml -R StrawHat-Enterprise/github-app-factory --ref main
+gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/octocraft -b true
+gh workflow run deploy.yml -R StrawHat-Enterprise/octocraft --ref main
 ```
 
 [deploy.yml](.github/workflows/deploy.yml) is **manual dispatch only**: merges never deploy. Only do this once the app resources exist. The run first tests and packages the Functions ZIP. The `approval` job then opens an issue titled **Deploy &lt;sha&gt; to production** and the run **waits** (up to 6 hours). Nothing touches Azure until BK3820 approves.
@@ -222,7 +226,7 @@ Once `configure-github.js` succeeds after the upgrade, both layers apply.
 Comment `approve` on the deployment issue the run opened. If the environment reviewer is also active (after the upgrade), open the run → **Review deployments** → `production` → **Approve and deploy**. Do not approve failed tests, unexplained permission changes, or the wrong commit.
 
 ```bash
-curl --fail https://strawhat-ghapp-factory.azurewebsites.net/api/health
+curl --fail https://strawhat-octocraft.azurewebsites.net/api/health
 ```
 
 Expected response: `{"ok":true,"store":"azure-table"}`. This checks handler availability, not storage/Key Vault readiness. Sign in through a browser and test an IssueOps request as well.
@@ -236,7 +240,7 @@ Open the web app, inspect permissions, choose a delivery destination, then selec
 ## Pause and teardown
 
 ```bash
-gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b false
+gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/octocraft -b false
 ./scripts/deprovision.sh --confirm
 ```
 

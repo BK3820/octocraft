@@ -11,7 +11,7 @@
 - Infrastructure is managed interactively by Terraform; the GitHub pipeline deploys **Go Functions application code only**, not infrastructure.
 - The Function App is configured for the native Go `1.0` worker on Linux Flex Consumption. Go packaging requires Core Tools 4.12 or later, which currently prints a preview warning.
 - CI builds the Functions ZIP for deployment and separately builds/runs the standalone Docker image as a health check. The image is not pushed to a registry or deployed by this workflow.
-- The [Helm chart](../charts/github-app-factory/README.md) uses a managed-disk PVC for requests and Key Vault through Workload Identity for credentials, with no Storage Account configuration. Input tokens are mounted files, and `VAULT_ONLY=true` blocks ZIP delivery/downloads and mock-vault fallback. CI validates it under `build`, but does not create AKS resources, install Helm, or alter the separate Functions deployment. It is internal-only and single-replica; browser authentication remains a prerequisite.
+- The [Helm chart](../charts/octocraft/README.md) uses a managed-disk PVC for requests and Key Vault through Workload Identity for credentials, with no Storage Account configuration. Input tokens are mounted files, and `VAULT_ONLY=true` blocks ZIP delivery/downloads and mock-vault fallback. CI validates it under `build`, but does not create AKS resources, install Helm, or alter the separate Functions deployment. It is internal-only and single-replica; browser authentication remains a prerequisite.
 
 ## Terraform inventory and state
 
@@ -56,9 +56,9 @@ Run `node scripts/configure-github.js` only with repository admin permissions. I
 Verify:
 
 ```bash
-gh api repos/StrawHat-Enterprise/github-app-factory/environments/production
-gh api repos/StrawHat-Enterprise/github-app-factory/rulesets
-gh variable get APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory
+gh api repos/StrawHat-Enterprise/octocraft/environments/production
+gh api repos/StrawHat-Enterprise/octocraft/rulesets
+gh variable get APP_FACTORY_ENABLED -R StrawHat-Enterprise/octocraft
 ```
 
 Expected environment policy: a `required_reviewers` rule for BK3820, admin bypass disabled, main-only deployment branch policy. A successful base environment creation without reviewers is **not** enough.
@@ -70,7 +70,7 @@ On the current Free plan, the reviewer API returns 422, so the workflow does not
 The existing repository uses immutable owner/repository ID claim syntax:
 
 ```text
-repo:StrawHat-Enterprise@<owner-id>/github-app-factory@<repo-id>:environment:production
+repo:StrawHat-Enterprise@<owner-id>/octocraft@<repo-id>:environment:production
 ```
 
 The provisioning script resolves the numeric IDs and registers this subject with Entra. Adding `environment:production` to the job changes the subject from the old branch-only form; leaving old branch federation in place would be unnecessary trust. The script removes other credentials on this dedicated deployer registration before adding the production one.

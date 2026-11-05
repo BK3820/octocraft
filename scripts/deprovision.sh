@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REPO="${REPO:-StrawHat-Enterprise/github-app-factory}"
+REPO="${REPO:-StrawHat-Enterprise/octocraft}"
 if [[ "${1:-}" != "--confirm" || "$#" -ne 1 ]]; then
   echo "Usage: $0 --confirm (Terraform will also ask you to approve destruction)"
   exit 2

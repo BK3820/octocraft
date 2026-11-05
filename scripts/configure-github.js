@@ -2,7 +2,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const repo = process.env.REPO || 'StrawHat-Enterprise/github-app-factory';
+const repo = process.env.REPO || 'StrawHat-Enterprise/octocraft';
 const reviewer = process.env.REVIEWER || 'BK3820';
 function gh(args, input) {
   return execFileSync('gh', args, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'inherit'] });
