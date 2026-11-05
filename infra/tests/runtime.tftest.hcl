@@ -23,6 +23,18 @@ run "runtime_policy" {
     error_message = "Flex deployment storage must use managed identity."
   }
   assert {
+    condition     = azapi_update_resource.go_runtime.body.properties.functionAppConfig.runtime.name == "go"
+    error_message = "The Flex Function App must be patched to Azure's native Go runtime."
+  }
+  assert {
+    condition     = azapi_update_resource.go_runtime.body.properties.functionAppConfig.runtime.version == "1.0"
+    error_message = "The native Go runtime must use the supported 1.0 worker version."
+  }
+  assert {
+    condition     = !contains(keys(azurerm_function_app_flex_consumption.app.app_settings), "FUNCTIONS_WORKER_RUNTIME")
+    error_message = "Flex derives the Go worker from functionAppConfig; do not set FUNCTIONS_WORKER_RUNTIME."
+  }
+  assert {
     condition     = azurerm_function_app_flex_consumption.app.auth_settings_v2[0].require_authentication == true
     error_message = "The UI must require browser sign-in."
   }

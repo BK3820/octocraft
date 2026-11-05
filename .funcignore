@@ -6,3 +6,12 @@ infra
 scripts
 data
 *.md
+node_modules
+package.json
+package-lock.json
+Dockerfile
+compose.yaml
+*_test.go
+local.settings.example.json
+github-app-factory.zip
+release.zip

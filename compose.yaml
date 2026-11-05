@@ -1,0 +1,37 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      PORT: "3000"
+      DATA_DIR: /data
+      INGEST_TOKEN: ${INGEST_TOKEN:-dev-ingest-token}
+      ALLOW_SIMULATE: ${ALLOW_SIMULATE:-true}
+      STORAGE_ACCOUNT_NAME: ${STORAGE_ACCOUNT_NAME:-}
+      REQUESTS_TABLE: ${REQUESTS_TABLE:-apprequests}
+      OUTBOX_CONTAINER: ${OUTBOX_CONTAINER:-outbox}
+      KEY_VAULT_URL: ${KEY_VAULT_URL:-}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_TOKEN: ${VAULT_TOKEN:-}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-secret}
+      VAULT_PATH_PREFIX: ${VAULT_PATH_PREFIX:-github-apps}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEB_URL: ${GITHUB_WEB_URL:-https://github.com}
+      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      BASE_URL: ${BASE_URL:-}
+    volumes:
+      - factory-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
+
+volumes:
+  factory-data:
