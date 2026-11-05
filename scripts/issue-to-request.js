@@ -1,4 +1,4 @@
-// Converts a GitHub issue-form body into a GitHub App Factory request payload.
+// Converts a GitHub issue-form body into a OctoCraft request payload.
 // Used by .github/workflows/issueops-github-app.yml and testable locally:
 //   node scripts/issue-to-request.js < sample-issue.md
 const NONE = new Set(['', '_No response_', 'None']);

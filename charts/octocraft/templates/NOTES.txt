@@ -2,7 +2,7 @@ This release is internal-only. The Go container has no browser sign-in protectio
 Do not publish the Service directly or place it behind an unauthenticated ingress.
 
 Forward the Service to your workstation:
-  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "github-app-factory.fullname" . }} 3100:80
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "octocraft.fullname" . }} 3100:80
 
 Open http://localhost:3100
 

@@ -13,5 +13,5 @@ Dockerfile
 compose.yaml
 *_test.go
 local.settings.example.json
-github-app-factory.zip
+octocraft.zip
 release.zip

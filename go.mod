@@ -1,4 +1,4 @@
-module github.com/strawhat-enterprise/github-app-factory
+module github.com/strawhat-enterprise/octocraft
 
 go 1.27.0
 

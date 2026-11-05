@@ -8,7 +8,7 @@
 - One coherent change per PR. Keep unrelated cleanup out.
 - Squash merge after reviews/checks; delete the branch after merge.
 - Every merge to `main` is automatically released as `vMAJOR.MINOR.PATCH` (image + OCI Helm chart + GitHub Release). Do not create `v*` tags by hand.
-- Patch bumps are automatic; for a minor/major release, raise `version` and `appVersion` in `charts/github-app-factory/Chart.yaml` in your PR.
+- Patch bumps are automatic; for a minor/major release, raise `version` and `appVersion` in `charts/octocraft/Chart.yaml` in your PR.
 - Releases never deploy. Azure Functions deployment is a manual `workflow_dispatch` of `deploy.yml` on `main`, and still needs production approval.
 
 ```bash
@@ -59,7 +59,7 @@ npm test
 npx playwright install chromium
 npm run test:ui
 docker compose config -q
-docker build -t github-app-factory:local .
+docker build -t octocraft:local .
 bash test/helm-chart.sh
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
@@ -72,7 +72,7 @@ git diff --check
 - Backend behavior: add/adjust Go tests for validation, statuses, credentials and API responses. Keep the Node IssueOps parser covered by its focused test.
 - UI changes: keep keyboard focus, labels, mobile layout, loading/error states and draft preservation. Run `npm run screenshots` and commit refreshed images with the UI.
 - Infrastructure: include `terraform plan` review when an environment exists. CI does not run apply or authenticated cloud plans.
-- Helm: validate the PVC/Key Vault profile and configuration guards using `bash test/helm-chart.sh`. Preserve internal-only exposure, mounted input-token files, mandatory Key Vault delivery and single-replica safety. See the [chart guide](charts/github-app-factory/README.md); never install on a shared cluster just to validate templates.
+- Helm: validate the PVC/Key Vault profile and configuration guards using `bash test/helm-chart.sh`. Preserve internal-only exposure, mounted input-token files, mandatory Key Vault delivery and single-replica safety. See the [chart guide](charts/octocraft/README.md); never install on a shared cluster just to validate templates.
 - Dependency changes: commit `go.mod`/`go.sum` for Go and the npm lockfile for the IssueOps helper/browser tests. Provider changes: commit the Terraform lockfile with both `linux_amd64` and `darwin_arm64` checksums.
 - Do not check in `.terraform/`, state, tfvars containing account IDs/secrets, plan files, local test data, ZIPs, PEMs or credentials.
 - Never apply/destroy Azure resources just to test a documentation/UI change.

@@ -2,10 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REPO="${REPO:-StrawHat-Enterprise/github-app-factory}"
-RG="${RG:-rg-github-app-factory}"
+REPO="${REPO:-StrawHat-Enterprise/octocraft}"
+RG="${RG:-rg-octocraft}"
 LOCATION="${LOCATION:-eastus2}"
-APP_NAME="${APP_NAME:-strawhat-ghapp-factory}"
+APP_NAME="${APP_NAME:-strawhat-octocraft}"
 export REPO
 
 gh variable set APP_FACTORY_ENABLED -R "$REPO" -b false
@@ -13,10 +13,18 @@ gh variable set APP_FACTORY_ENABLED -R "$REPO" -b false
 node scripts/configure-github.js
 
 ensure_app() {
+  local display_name="$1"
+  local legacy_display_name="${2:-}"
   local id
-  id=$(az ad app list --display-name "$1" --query "[0].appId" -o tsv)
+  id=$(az ad app list --display-name "$display_name" --query "[0].appId" -o tsv)
+  if [[ -z "$id" && -n "$legacy_display_name" ]]; then
+    id=$(az ad app list --display-name "$legacy_display_name" --query "[0].appId" -o tsv)
+    if [[ -n "$id" ]]; then
+      az ad app update --id "$id" --display-name "$display_name"
+    fi
+  fi
   if [[ -z "$id" ]]; then
-    id=$(az ad app create --display-name "$1" --sign-in-audience AzureADMyOrg --query appId -o tsv)
+    id=$(az ad app create --display-name "$display_name" --sign-in-audience AzureADMyOrg --query appId -o tsv)
     az ad sp create --id "$id" >/dev/null
   fi
   echo "$id"
@@ -24,8 +32,9 @@ ensure_app() {
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
 SUB_ID=$(az account show --query id -o tsv)
-UI_APP_ID=$(ensure_app github-app-factory-ui)
-DEPLOY_APP_ID=$(ensure_app github-app-factory-deployer)
+# Rename the retained registrations in place, preserving their app and service-principal IDs.
+UI_APP_ID=$(ensure_app octocraft-ui github-app-factory-ui)
+DEPLOY_APP_ID=$(ensure_app octocraft-deployer github-app-factory-deployer)
 DEPLOY_SP_ID=$(az ad sp show --id "$DEPLOY_APP_ID" --query id -o tsv)
 az ad app update --id "$UI_APP_ID" \
   --web-redirect-uris "https://${APP_NAME}.azurewebsites.net/.auth/login/aad/callback" \

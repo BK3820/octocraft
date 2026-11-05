@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/strawhat-enterprise/github-app-factory
+  repository: ghcr.io/strawhat-enterprise/octocraft
   # Empty tag uses the chart appVersion (set to the release version by CI).
   tag: ""
   pullPolicy: IfNotPresent
@@ -14,7 +14,7 @@ app:
 
 # Create this Secret separately; never put credential values in Helm values.
 secrets:
-  existingSecret: github-app-factory-secrets
+  existingSecret: octocraft-secrets
   ingestTokenKey: ingest-token
   githubTokenKey: ""
 

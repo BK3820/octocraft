@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"log"
 	"math/big"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -229,6 +230,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.serveIndex(w)
 		return
 	}
+	if r.Method == http.MethodGet && strings.HasPrefix(path, "/assets/") {
+		a.serveAsset(w, strings.TrimPrefix(path, "/"))
+		return
+	}
 	if r.Method == http.MethodGet && path == "/api/health" {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "store": a.store.Kind()})
 		return
@@ -286,6 +291,33 @@ func (a *App) serveIndex(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("write dashboard response: %v", err)
+	}
+}
+
+func (a *App) serveAsset(w http.ResponseWriter, asset string) {
+	if !fs.ValidPath(asset) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Not found"})
+		return
+	}
+	data, err := fs.ReadFile(a.publicFS, asset)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Not found"})
+			return
+		}
+		log.Printf("read public asset %q: %v", asset, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+		return
+	}
+	contentType := mime.TypeByExtension(filepath.Ext(asset))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("write public asset %q: %v", asset, err)
 	}
 }
 

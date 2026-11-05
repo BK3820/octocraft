@@ -5,7 +5,7 @@
 #   - otherwise                       -> latest tag with patch + 1
 set -euo pipefail
 
-chart_file="${1:-charts/github-app-factory/Chart.yaml}"
+chart_file="${1:-charts/octocraft/Chart.yaml}"
 semver='^[0-9]+\.[0-9]+\.[0-9]+$'
 
 chart_version="$(awk '/^version:/ {print $2; exit}' "$chart_file" | tr -d '"'"'")"

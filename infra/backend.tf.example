@@ -6,7 +6,7 @@ terraform {
     resource_group_name  = "rg-terraform-state"
     storage_account_name = "REPLACE_WITH_STATE_ACCOUNT"
     container_name       = "tfstate"
-    key                  = "github-app-factory.tfstate"
+    key                  = "octocraft.tfstate"
     use_azuread_auth     = true
   }
 }

@@ -8,7 +8,7 @@ resource "random_bytes" "ingest" {
 }
 locals {
   suffix = random_id.suffix.hex
-  tags   = { app = "github-app-factory", managed_by = "terraform" }
+  tags   = { app = "octocraft", managed_by = "terraform" }
 }
 
 resource "azurerm_resource_group" "app" {

@@ -1,24 +1,24 @@
-{{- include "github-app-factory.validate" . }}
+{{- include "octocraft.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "github-app-factory.fullname" . }}
+  name: {{ include "octocraft.fullname" . }}
   labels:
-    {{- include "github-app-factory.labels" . | nindent 4 }}
+    {{- include "octocraft.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "github-app-factory.selectorLabels" . | nindent 6 }}
+      {{- include "octocraft.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "github-app-factory.selectorLabels" . | nindent 8 }}
+        {{- include "octocraft.selectorLabels" . | nindent 8 }}
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: {{ include "github-app-factory.fullname" . }}
+      serviceAccountName: {{ include "octocraft.fullname" . }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       {{- with .Values.imagePullSecrets }}
@@ -99,7 +99,7 @@ spec:
             sizeLimit: 64Mi
         - name: data
           persistentVolumeClaim:
-            claimName: {{ default (include "github-app-factory.fullname" .) .Values.persistence.existingClaim | quote }}
+            claimName: {{ default (include "octocraft.fullname" .) .Values.persistence.existingClaim | quote }}
         - name: secrets
           secret:
             secretName: {{ .Values.secrets.existingSecret | quote }}

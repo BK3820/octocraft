@@ -1,5 +1,5 @@
 {
-  "name": "github-app-factory",
+  "name": "octocraft",
   "version": "0.2.0",
   "private": true,
   "description": "Go-based GitHub App approval workspace with IssueOps intake and secure credential handoff.",

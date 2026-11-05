@@ -1,6 +1,6 @@
 # Replace all example identifiers before installing. This does not create Azure resources.
 image:
-  repository: ghcr.io/strawhat-enterprise/github-app-factory
+  repository: ghcr.io/strawhat-enterprise/octocraft
   # Leave empty to run the image released with this chart version.
   tag: ""
   pullPolicy: IfNotPresent

@@ -390,7 +390,7 @@ func buildEml(slug, recipient string, zipData []byte, stamp int64) string {
 	wrapped.WriteString(encoded)
 	return strings.Join([]string{
 		"To: " + recipient,
-		"From: github-app-factory@localhost",
+		"From: octocraft@localhost",
 		"Subject: Credentials for GitHub App " + slug,
 		"MIME-Version: 1.0",
 		`Content-Type: multipart/mixed; boundary="` + boundary + `"`,

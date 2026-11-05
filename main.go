@@ -8,7 +8,7 @@ import (
 
 	"github.com/azure/azure-functions-golang-worker/sdk"
 	"github.com/azure/azure-functions-golang-worker/worker"
-	"github.com/strawhat-enterprise/github-app-factory/internal/factory"
+	"github.com/strawhat-enterprise/octocraft/internal/factory"
 )
 
 //go:embed public
@@ -21,7 +21,7 @@ func main() {
 	}
 	app, err := factory.New(factory.Config{PublicFS: publicFS})
 	if err != nil {
-		log.Fatalf("initialize GitHub App Factory: %v", err)
+		log.Fatalf("initialize OctoCraft: %v", err)
 	}
 
 	functionApp := sdk.FunctionApp()

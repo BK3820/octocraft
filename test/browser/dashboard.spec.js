@@ -9,18 +9,21 @@ test('approval dashboard, search, drafts, handoff, errors and responsive layout'
       headers: { Authorization: 'Bearer browser-test-only' },
       data: {
         owner_type: 'org', owner: 'StrawHat-Enterprise', secret_storage: 'vault', requester: 'BK3820',
-        source: { type: 'issue', repo: 'StrawHat-Enterprise/github-app-factory', issue_number: index + 1,
-          url: `https://github.com/StrawHat-Enterprise/github-app-factory/issues/${index + 1}` },
+        source: { type: 'issue', repo: 'StrawHat-Enterprise/octocraft', issue_number: index + 1,
+          url: `https://github.com/StrawHat-Enterprise/octocraft/issues/${index + 1}` },
         manifest: { name, description: ['Review pull requests with tightly scoped repository access.',
           'Keep release operations informed with a dedicated GitHub App.',
           'Automate repository checks while keeping credentials in your vault.'][index],
-          url: 'https://github.com/StrawHat-Enterprise/github-app-factory',
+          url: 'https://github.com/StrawHat-Enterprise/octocraft',
           default_permissions: { contents: 'read', pull_requests: 'write' }, default_events: [] },
       },
     });
     expect(res.status()).toBe(201);
   }
   await page.goto('/');
+  const logo = page.getByRole('img', { name: 'OctoCraft' });
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute('src', '/assets/octocraft-logo.png');
   await expect(page.locator('.card')).toHaveCount(3);
   await expect(page.locator('#stat-total')).toHaveText('3');
   if (process.env.CAPTURE_UI === 'true') {

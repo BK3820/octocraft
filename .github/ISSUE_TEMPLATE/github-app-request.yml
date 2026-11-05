@@ -1,5 +1,5 @@
 name: "GitHub App request"
-description: "Request a new GitHub App. An approver creates it from the GitHub App Factory."
+description: "Request a new GitHub App. An approver creates it from the OctoCraft."
 title: "[GitHub App] <app-name>"
 labels: ["github-app-request"]
 body:
