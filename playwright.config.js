@@ -12,13 +12,14 @@ module.exports = defineConfig({
   use: { baseURL: 'http://127.0.0.1:3100', viewport: { width: 1440, height: 1100 } },
   globalTeardown: './test/browser/cleanup.js',
   webServer: {
-    command: 'node server.js',
+    command: 'go run ./cmd/server',
     url: 'http://127.0.0.1:3100/api/health',
     reuseExistingServer: false,
     env: {
       PORT: '3100', DATA_DIR: dataDir, STORAGE_ACCOUNT_NAME: '',
       KEY_VAULT_URL: '', VAULT_ADDR: '', VAULT_TOKEN: '',
       INGEST_TOKEN: 'browser-test-only', ALLOW_SIMULATE: 'true', GITHUB_TOKEN: '',
+      INGEST_TOKEN_FILE: '', GITHUB_TOKEN_FILE: '', VAULT_ONLY: '',
     },
   },
 });

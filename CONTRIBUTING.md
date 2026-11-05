@@ -7,8 +7,9 @@
 - Open a PR early for substantial changes; use Draft while incomplete.
 - One coherent change per PR. Keep unrelated cleanup out.
 - Squash merge after reviews/checks; delete the branch after merge.
-- Release tags use `vMAJOR.MINOR.PATCH` only for intentional releases. Tags do not themselves deploy.
-- Deployment follows `main` or a manual workflow dispatch on `main`, and still needs production approval.
+- Every merge to `main` is automatically released as `vMAJOR.MINOR.PATCH` (image + OCI Helm chart + GitHub Release). Do not create `v*` tags by hand.
+- Patch bumps are automatic; for a minor/major release, raise `version` and `appVersion` in `charts/github-app-factory/Chart.yaml` in your PR.
+- Releases never deploy. Azure Functions deployment is a manual `workflow_dispatch` of `deploy.yml` on `main`, and still needs production approval.
 
 ```bash
 git switch main
@@ -40,7 +41,7 @@ The current organization plan has refused enforcement for this private repositor
 | Dismiss stale approvals | New changes must be reviewed again |
 | Last push approval required | The person pushing the final changes cannot be the only approver |
 | Resolve review threads | Do not merge unresolved discussions |
-| `build`, `terraform`, `ui` checks from GitHub Actions | Unit/package, infrastructure validation, browser behavior |
+| `build`, `terraform`, `ui` checks from GitHub Actions | Go tests/package, container smoke test and Helm validation, infrastructure validation, browser behavior |
 | Branch must be up to date | Test changes against latest main before merge |
 | Linear history | Squash commits for reviewable rollback/history |
 | Block deletion and force pushes | Protect the release branch |
@@ -51,10 +52,15 @@ The current organization plan has refused enforcement for this private repositor
 ## Required local validation
 
 ```bash
+go test ./...
+go vet ./...
 npm ci
 npm test
 npx playwright install chromium
 npm run test:ui
+docker compose config -q
+docker build -t github-app-factory:local .
+bash test/helm-chart.sh
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
 terraform -chdir=infra validate
@@ -63,10 +69,11 @@ bash -n scripts/provision.sh scripts/deprovision.sh
 git diff --check
 ```
 
-- Backend behavior: add/adjust Node tests for validation, statuses, credentials and API responses.
+- Backend behavior: add/adjust Go tests for validation, statuses, credentials and API responses. Keep the Node IssueOps parser covered by its focused test.
 - UI changes: keep keyboard focus, labels, mobile layout, loading/error states and draft preservation. Run `npm run screenshots` and commit refreshed images with the UI.
 - Infrastructure: include `terraform plan` review when an environment exists. CI does not run apply or authenticated cloud plans.
-- Dependency changes: commit the npm lockfile. Provider changes: commit the Terraform lockfile with both `linux_amd64` and `darwin_arm64` checksums.
+- Helm: validate the PVC/Key Vault profile and configuration guards using `bash test/helm-chart.sh`. Preserve internal-only exposure, mounted input-token files, mandatory Key Vault delivery and single-replica safety. See the [chart guide](charts/github-app-factory/README.md); never install on a shared cluster just to validate templates.
+- Dependency changes: commit `go.mod`/`go.sum` for Go and the npm lockfile for the IssueOps helper/browser tests. Provider changes: commit the Terraform lockfile with both `linux_amd64` and `darwin_arm64` checksums.
 - Do not check in `.terraform/`, state, tfvars containing account IDs/secrets, plan files, local test data, ZIPs, PEMs or credentials.
 - Never apply/destroy Azure resources just to test a documentation/UI change.
 
@@ -96,7 +103,9 @@ Deployment self-review is permitted for the POC because the requested sole deplo
 
 ## Releases, rollback and emergencies
 
-- Release by merging a reviewed PR, approving its production job, then recording the commit/tag and smoke-test result.
+- Merging a reviewed PR creates the release (`ci.yml` → `release` job). Verify the tag, the GitHub Release, and the GHCR image/chart.
+- To deploy Functions, dispatch `deploy.yml`, approve its issue, then record the commit/tag and smoke-test result. For AKS, `helm upgrade` to the released chart version.
+- Never delete or move a published tag or overwrite a released version; ship a new patch instead.
 - Do not enable auto-merge; owner approval is deliberate.
 - Standard rollback: revert via PR, run checks, approve redeployment.
 - Manual dispatch builds the chosen `main` revision; selecting a feature ref does not satisfy the deployment condition.

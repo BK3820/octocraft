@@ -9,7 +9,7 @@ flowchart TD
   issue --> action[IssueOps Action]
   action -->|manifest + bearer token| ingest[POST /api/ingest]
   subgraph Azure["Azure: Terraform-managed runtime"]
-    ingest --> router[HTTP Function router]
+    ingest --> router[Go HTTP Function router]
     ui[Approval UI served by same Function] --> router
     auth[Easy Auth + Entra ID] -->|authenticated principal| ui
     router -->|request JSON and metadata| tables[Table Storage apprequests]
@@ -32,6 +32,8 @@ flowchart TD
 
 Solid arrows are implemented. ServiceNow adapter and automatic SMTP/ACS delivery are not implemented. A webhook URL in a manifest belongs to the created app’s consuming service; this portal is **not** automatically the webhook receiver.
 
+The Azure deployment is a native Go Functions worker on Linux Flex Consumption. A separate standalone `net/http` entry point uses the same handler for local use and the Docker image. The Docker image is not the package deployed by the current Azure workflow.
+
 ## Components and why each exists
 
 | Component | Purpose | Implementation / data |
@@ -40,10 +42,12 @@ Solid arrows are implemented. ServiceNow adapter and automatic SMTP/ACS delivery
 | IssueOps workflow | Parse request, create manifest, call ingest, leave review link and label | `.github/workflows/issueops-github-app.yml`; `issues:write`, `contents:read`; only `opened`/matching `labeled` |
 | Parser | Converts Markdown sections to GitHub manifest JSON | `scripts/issue-to-request.js`; no-response fields stripped, selected events used only with webhook URL |
 | UI | Human access review, queue statistics, search/sort/status filters, delivery choice, GitHub confirmation | `public/index.html`; no raw credential values shown |
-| Local server | Development-only HTTP adapter around same application handler | `server.js`; no cloud authentication or automatic email |
-| Function router | Azure HTTP adapter serving UI and API on one origin | `src/functions/router.js`; catch-all with empty route prefix |
-| Shared handler | Validation, duplicate checks, status, callbacks, credential handoff | `src/app.js`; used locally and on Azure |
-| Flex Consumption host | Runs Node 22 on demand, scales to zero without always-ready instances | 2 GB instances, max 40; package-backed deployment; cold starts possible |
+| Local server | Development-only `net/http` adapter around the shared application handler | `cmd/server/main.go`; no cloud authentication or automatic email |
+| Function entry point | Registers the catch-all HTTP trigger with the Azure Go worker | `main.go`; dashboard HTML is embedded in the binary for ZIP deployment |
+| Shared handler | Validation, duplicate checks, status, callbacks and credential handoff | `internal/factory/app.go`; used locally, in Functions and in the container |
+| Flex Consumption host | Runs the native Go worker on Linux, scales to zero without always-ready instances | Go runtime `1.0`, built with Go 1.27; 2 GB instances, max 40; package-backed deployment; cold starts possible |
+| Standalone container | Local/alternative container-host entry point using the same API | `Dockerfile` and `compose.yaml`; non-root, read-only root filesystem, persistent `/data` volume |
+| Functions package | Build artifact consumed by the Azure deployment action | Core Tools `func pack`; Linux x64 package contains `host.json` and the Go binary with embedded UI |
 | Easy Auth / Entra | Browser sign-in, authenticated principal metadata | `auth_settings_v2`; excludes only health and ingestion |
 | Managed identity | App authenticates to Azure services without account keys/passwords | System-assigned identity; tied to Function App lifecycle |
 | Storage: host | Runtime coordination/checkpoints/locks where required | `AzureWebJobsStorage__accountName` + managed identity |
@@ -58,6 +62,8 @@ Solid arrows are implemented. ServiceNow adapter and automatic SMTP/ACS delivery
 | Entra deployer registration | OIDC token exchange for GitHub Actions | `environment:production` federation; Website Contributor only on Function App |
 | Terraform | Declares runtime resources, relationships, roles and secret generation | AzureRM native Flex + AzAPI management-plane containers/table/secret |
 | Terraform state | Remembers resource IDs and generated values across plan/apply/destroy | Local POC default; separate encrypted/locked remote backend recommended |
+
+Azure Functions Go support is restricted to Linux Flex Consumption. Core Tools 4.12 or later is required for Go packaging and currently prints a preview warning. The Function host selects the worker from `functionAppConfig.runtime` (`go`, `1.0`); it must not receive a `FUNCTIONS_WORKER_RUNTIME` application setting on Flex.
 
 ## Request trace: issue to credential handoff
 

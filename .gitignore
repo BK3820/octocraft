@@ -1,7 +1,10 @@
 data/
 node_modules/
+.env
+bin/
 local.settings.json
 release.zip
+github-app-factory.zip
 .DS_Store
 .terraform/
 *.tfstate

@@ -74,3 +74,41 @@ test('approval dashboard, search, drafts, handoff, errors and responsive layout'
   await expect(page.getByRole('alert')).toContainText('Service unavailable');
   expect(errors).toEqual([]);
 });
+
+test('vault-only deployment hides ZIP delivery and historical downloads', async ({ page }) => {
+  const manifest = { name: 'vault-only-bot', description: 'Key Vault credentials', url: 'https://example.test' };
+  let rows = [{
+    id: 'vault-request', status: 'pending', owner_type: 'org', owner: 'StrawHat-Enterprise',
+    secret_storage: 'email', notify_email: 'team@example.test', source: {}, manifest,
+    created_at: '2026-11-04T00:00:00Z',
+  }, {
+    id: 'historical-request', status: 'created', owner_type: 'org', owner: 'StrawHat-Enterprise',
+    secret_storage: 'email', source: {}, manifest: { ...manifest, name: 'historical-bot' },
+    created_at: '2026-11-03T00:00:00Z',
+    app: { id: 1, slug: 'historical-bot', client_id: 'test', html_url: 'https://github.com/apps/historical-bot' },
+    delivery: { method: 'email', zipName: 'old.zip', emlName: 'old.eml' },
+  }];
+  await page.route('**/api/config', route => route.fulfill({
+    json: { vault_only: true, vault_provider: 'keyvault', store: 'local', allow_simulate: true, github_web: 'https://github.com' },
+  }));
+  await page.route('**/api/requests', route => route.fulfill({ json: rows }));
+  await page.route('**/api/requests/vault-request/simulate', route => {
+    expect(route.request().postDataJSON()).toEqual({ secret_storage: 'vault' });
+    rows[0] = {
+      ...rows[0], status: 'created', secret_storage: 'vault',
+      app: { id: 2, slug: 'vault-only-bot', client_id: 'test', html_url: 'https://github.com/apps/vault-only-bot' },
+      delivery: { method: 'vault', provider: 'keyvault', location: 'https://example-vault.vault.azure.net' },
+    };
+    return route.fulfill({ json: rows[0] });
+  });
+  await page.goto('/');
+  const card = page.getByRole('article', { name: 'vault-only-bot request' });
+  await expect(card.getByRole('radio', { name: /Vault \(keyvault\)/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /ZIP outbox/ })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: /Delivery email/ })).toHaveCount(0);
+  await expect(card.getByText('Key Vault delivery is required.', { exact: false })).toBeVisible();
+  await card.getByRole('button', { name: 'Simulate create (demo)' }).click();
+  await expect(card.getByText('Stored in Vault:', { exact: false })).toBeVisible();
+  await expect(page.getByText('Historical ZIP delivery;', { exact: false })).toBeVisible();
+  await expect(page.getByRole('link', { name: /download (zip|email draft)/ })).toHaveCount(0);
+});

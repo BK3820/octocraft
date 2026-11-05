@@ -173,11 +173,11 @@ function card(r) {
     <div class="actions">
       <div class="row" style="margin-bottom:10px">
         <strong>Secret delivery:</strong>
-        <label><input type="radio" name="st-${r.id}" value="vault" ${r.secret_storage==='vault'?'checked':''}> 🔐 Vault (${esc(config.vault_provider)})</label>
-        <label><input type="radio" name="st-${r.id}" value="email" ${r.secret_storage==='email'?'checked':''}> 📧 ZIP outbox (not sent)</label>
-        <input type="email" id="em-${r.id}" aria-label="Delivery email for ${esc(m.name)}" placeholder="recipient@company.com" value="${esc(r.notify_email || '')}">
+        <label><input type="radio" name="st-${r.id}" value="vault" ${config.vault_only || r.secret_storage==='vault'?'checked':''}> 🔐 Vault (${esc(config.vault_provider)})</label>
+        ${config.vault_only ? '' : `<label><input type="radio" name="st-${r.id}" value="email" ${r.secret_storage==='email'?'checked':''}> 📧 ZIP outbox (not sent)</label>
+        <input type="email" id="em-${r.id}" aria-label="Delivery email for ${esc(m.name)}" placeholder="recipient@company.com" value="${esc(r.notify_email || '')}">`}
       </div>
-      <div class="notice">Vault is recommended. Email mode saves a ZIP and email draft; it does not send an email.</div>
+      <div class="notice">${config.vault_only ? 'Key Vault delivery is required. Credential ZIP creation and downloads are disabled.' : 'Vault is recommended. Email mode saves a ZIP and email draft; it does not send an email.'}</div>
       <div class="row">
         <button class="btn green" onclick="createApp('${r.id}', false, this)">Create on GitHub →</button>
         ${config.allow_simulate ? `<button class="btn blue" onclick="createApp('${r.id}', true, this)">Simulate create (demo)</button>` : ''}
@@ -192,6 +192,7 @@ function card(r) {
     const d = r.delivery || {};
     const deliv = d.method === 'vault'
       ? `🔐 Stored in Vault: <code>${esc(d.location)}</code>${d.version ? ` (v${esc(d.version)})` : ''}`
+      : config.vault_only ? 'Historical ZIP delivery; downloads disabled by the Key Vault-only policy.'
       : `📧 ZIP prepared for <b>${esc(d.to)}</b> (not emailed) — <a href="/outbox/${esc(d.zipName)}">download zip</a> · <a href="/outbox/${esc(d.emlName)}">download email draft</a>`;
     result = `<div class="result">✅ App <a href="${esc(r.app.html_url)}" target="_blank">${esc(r.app.slug)}</a> created — App ID <code>${esc(r.app.id)}</code>, Client ID <code>${esc(r.app.client_id)}</code>${r.simulated ? ' <span class="pill">simulated</span>' : ''}<br>${deliv}</div>`;
   }
@@ -257,7 +258,7 @@ function render(flashId) {
 
 function choice(id) {
   const storage = document.querySelector(`input[name=st-${id}]:checked`)?.value;
-  const email = document.getElementById('em-' + id).value.trim();
+  const email = document.getElementById('em-' + id)?.value.trim() || '';
   if (!storage) throw new Error('Choose a secret delivery method');
   if (storage === 'email' && !email) throw new Error('Enter a recipient email');
   return { secret_storage: storage, notify_email: email || undefined };

@@ -95,11 +95,13 @@ resource "azurerm_function_app_flex_consumption" "app" {
   storage_container_type      = "blobContainer"
   storage_container_endpoint  = "${azurerm_storage_account.app.primary_blob_endpoint}deployments"
   storage_authentication_type = "SystemAssignedIdentity"
-  runtime_name                = "node"
-  runtime_version             = "22"
-  maximum_instance_count      = 40
-  instance_memory_in_mb       = 2048
-  https_only                  = true
+  # AzureRM has not yet added the native Go runtime to its Flex runtime enum.
+  # AzAPI below patches this bootstrap value to the supported Go 1.0 runtime.
+  runtime_name           = "custom"
+  runtime_version        = "1.0"
+  maximum_instance_count = 40
+  instance_memory_in_mb  = 2048
+  https_only             = true
   identity { type = "SystemAssigned" }
   site_config {
     minimum_tls_version                    = "1.2"
@@ -132,6 +134,27 @@ resource "azurerm_function_app_flex_consumption" "app" {
   }
   depends_on = [azapi_resource.container, azapi_resource.ingest_secret]
   tags       = local.tags
+  lifecycle {
+    # The AzAPI resource declares Azure's supported Go runtime. Retain the
+    # bootstrap value here until AzureRM adds Go to its runtime enum.
+    ignore_changes = [runtime_name, runtime_version]
+  }
+}
+
+resource "azapi_update_resource" "go_runtime" {
+  type        = "Microsoft.Web/sites@2024-04-01"
+  resource_id = azurerm_function_app_flex_consumption.app.id
+  body = {
+    properties = {
+      functionAppConfig = {
+        runtime = {
+          name    = "go"
+          version = "1.0"
+        }
+      }
+    }
+  }
+  depends_on = [azurerm_function_app_flex_consumption.app]
 }
 resource "azurerm_role_assignment" "storage" {
   for_each = toset([

@@ -1,0 +1,16 @@
+# Replace all example identifiers before installing. This does not create Azure resources.
+image:
+  repository: ghcr.io/strawhat-enterprise/github-app-factory
+  # Leave empty to run the image released with this chart version.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+keyVault:
+  url: https://example-vault.vault.azure.net
+
+persistence:
+  storageClass: managed-csi
+
+workloadIdentity:
+  clientId: 00000000-0000-0000-0000-000000000000
+  tenantId: 00000000-0000-0000-0000-000000000000

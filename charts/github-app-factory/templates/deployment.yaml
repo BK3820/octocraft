@@ -1,0 +1,114 @@
+{{- include "github-app-factory.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "github-app-factory.fullname" . }}
+  labels:
+    {{- include "github-app-factory.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "github-app-factory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "github-app-factory.selectorLabels" . | nindent 8 }}
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ include "github-app-factory.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: {{ printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DATA_DIR
+              value: "/data"
+            - name: BASE_URL
+              value: {{ .Values.app.baseURL | quote }}
+            - name: ALLOW_SIMULATE
+              value: {{ .Values.app.allowSimulate | quote }}
+            - name: INGEST_TOKEN_FILE
+              value: "/var/run/factory-secrets/ingest-token"
+            {{- if .Values.secrets.githubTokenKey }}
+            - name: GITHUB_TOKEN_FILE
+              value: "/var/run/factory-secrets/github-token"
+            {{- end }}
+            - name: VAULT_ONLY
+              value: "true"
+            - name: KEY_VAULT_URL
+              value: {{ .Values.keyVault.url | quote }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - name: secrets
+              mountPath: /var/run/factory-secrets
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (include "github-app-factory.fullname" .) .Values.persistence.existingClaim | quote }}
+        - name: secrets
+          secret:
+            secretName: {{ .Values.secrets.existingSecret | quote }}
+            optional: false
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.secrets.ingestTokenKey | quote }}
+                path: ingest-token
+              {{- if .Values.secrets.githubTokenKey }}
+              - key: {{ .Values.secrets.githubTokenKey | quote }}
+                path: github-token
+              {{- end }}

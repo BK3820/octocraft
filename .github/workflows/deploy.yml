@@ -1,56 +1,39 @@
-name: Build and deploy
+name: Deploy Azure Functions (manual)
 
+# Manual only. Tests, image and Helm chart releases run in ci.yml on every
+# PR / merge; this workflow ships the Azure Functions package after approval.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  terraform:
+  package:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/setup-go@v6
         with:
-          terraform_version: 1.10.1
-      - run: terraform -chdir=infra fmt -check
-      - run: terraform -chdir=infra init -backend=false -lockfile=readonly
-      - run: terraform -chdir=infra validate
-      - run: terraform -chdir=infra test
-  ui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
+          go-version-file: go.mod
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:ui
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - name: Package function app
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Package Go Function app
         run: |
-          npm ci --omit=dev
-          zip -qr release.zip host.json package.json src public node_modules
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/app .
+          FUNCTIONS_WORKER_RUNTIME=native FUNCTIONS_CLI_NATIVE_LANGUAGE=go \
+            npx --yes --package=azure-functions-core-tools@4.12.0 \
+            func pack --no-build
+          mv github-app-factory.zip release.zip
       - uses: actions/upload-artifact@v7
         with:
           name: functionapp
@@ -60,10 +43,8 @@ jobs:
   approval:
     # Plan-agnostic gate: works on GitHub Free private repos, where environment
     # required reviewers are unavailable. Opens an issue and waits for BK3820.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.APP_FACTORY_ENABLED == 'true')
-    needs: [build, terraform, ui]
+    if: vars.APP_FACTORY_ENABLED == 'true'
+    needs: [package]
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -85,7 +66,7 @@ jobs:
           fail-on-denial: true
   deploy:
     if: vars.APP_FACTORY_ENABLED == 'true' && github.ref == 'refs/heads/main'
-    needs: [build, approval]
+    needs: [package, approval]
     runs-on: ubuntu-latest
     environment:
       name: production
