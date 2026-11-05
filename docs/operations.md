@@ -11,6 +11,7 @@
 - Infrastructure is managed interactively by Terraform; the GitHub pipeline deploys **Go Functions application code only**, not infrastructure.
 - The Function App is configured for the native Go `1.0` worker on Linux Flex Consumption. Go packaging requires Core Tools 4.12 or later, which currently prints a preview warning.
 - CI builds the Functions ZIP for deployment and separately builds/runs the standalone Docker image as a health check. The image is not pushed to a registry or deployed by this workflow.
+- The [Helm chart](../charts/github-app-factory/README.md) uses a managed-disk PVC for requests and Key Vault through Workload Identity for credentials, with no Storage Account configuration. Input tokens are mounted files, and `VAULT_ONLY=true` blocks ZIP delivery/downloads and mock-vault fallback. CI validates it under `build`, but does not create AKS resources, install Helm, or alter the separate Functions deployment. It is internal-only and single-replica; browser authentication remains a prerequisite.
 
 ## Terraform inventory and state
 
@@ -87,7 +88,7 @@ Do not reuse that dedicated registration for unrelated repositories; otherwise t
 7. Allow time for managed identity RBAC and Key Vault app-setting references to propagate.
 8. Verify GitHub target variables and ingest secret have been written.
 9. Manually set `APP_FACTORY_ENABLED=true`.
-10. Dispatch on `main` or merge a PR. Approve only the correct successful commit.
+10. Dispatch `deploy.yml` on `main` (merges do not deploy). Approve only the correct successful commit.
 11. Smoke-test `/api/health`, browser sign-in, authenticated list, and IssueOps ingestion.
 
 If setup fails, it leaves remote jobs disabled. Read the exact failed API/CLI output; do not bypass a permissions failure by enabling anonymous auth, account keys or an unprotected environment.
@@ -99,6 +100,7 @@ If setup fails, it leaves remote jobs disabled. Read the exact failed API/CLI ou
 | `build` | Go and IssueOps parser tests, Go vet, Linux Functions ZIP, Docker build and container health smoke test | Actual GitHub App creation |
 | `terraform` | Formatting, provider installation, schema validation and mock-provider policy plan | Azure quota, permissions, applied state, managed identity propagation |
 | `ui` | Real Chromium, live local API, search/filter/sort, draft retention, simulate/outbox, mobile width, error display | Entra login or real one-time GitHub callback |
+| `release` (main only) | Tag, multi-arch GHCR image, OCI chart and GitHub Release share one version | That the release was deployed anywhere |
 | `approval` | BK3820 explicitly commented `approve` on the run's deployment issue | Reviewer’s diligence or Azure health |
 | Production wait | Native GitHub review before job starts | Approval of individual app-creation requests |
 | `/api/health` | Function handler responds | Table/Vault/Blob readiness; this endpoint does not probe them |

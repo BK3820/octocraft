@@ -19,6 +19,7 @@ module.exports = defineConfig({
       PORT: '3100', DATA_DIR: dataDir, STORAGE_ACCOUNT_NAME: '',
       KEY_VAULT_URL: '', VAULT_ADDR: '', VAULT_TOKEN: '',
       INGEST_TOKEN: 'browser-test-only', ALLOW_SIMULATE: 'true', GITHUB_TOKEN: '',
+      INGEST_TOKEN_FILE: '', GITHUB_TOKEN_FILE: '', VAULT_ONLY: '',
     },
   },
 });

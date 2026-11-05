@@ -28,6 +28,7 @@ import (
 )
 
 const requestBodyLimit = 1 << 20
+const vaultOnlyMessage = "This deployment requires Key Vault delivery; email ZIP delivery is disabled"
 
 var errPayloadTooLarge = errors.New("Payload too large")
 
@@ -59,6 +60,7 @@ type App struct {
 	githubToken   string
 	baseURL       string
 	allowSimulate bool
+	vaultOnly     bool
 }
 
 func New(cfg Config) (*App, error) {
@@ -66,7 +68,21 @@ func New(cfg Config) (*App, error) {
 	if env == nil {
 		env = environment()
 	}
-	var err error
+	vaultOnly := env["VAULT_ONLY"] == "true"
+	if vaultOnly && (env["KEY_VAULT_URL"] == "" || env["VAULT_ADDR"] != "" || env["VAULT_TOKEN"] != "") {
+		return nil, errors.New("VAULT_ONLY requires KEY_VAULT_URL and cannot use mock or HashiCorp Vault")
+	}
+	ingestToken, err := secretValue(env, "INGEST_TOKEN")
+	if err != nil {
+		return nil, err
+	}
+	if vaultOnly && ingestToken == "" {
+		return nil, errors.New("VAULT_ONLY requires a nonempty INGEST_TOKEN or INGEST_TOKEN_FILE")
+	}
+	githubToken, err := secretValue(env, "GITHUB_TOKEN")
+	if err != nil {
+		return nil, err
+	}
 	dataDir := env["DATA_DIR"]
 	if dataDir == "" {
 		dataDir = "data"
@@ -153,12 +169,13 @@ func New(cfg Config) (*App, error) {
 		store:         store,
 		delivery:      delivery,
 		httpClient:    httpClient,
-		ingestToken:   valueOr(env["INGEST_TOKEN"], "dev-ingest-token"),
+		ingestToken:   valueOr(ingestToken, "dev-ingest-token"),
 		githubWebURL:  strings.TrimRight(valueOr(env["GITHUB_WEB_URL"], "https://github.com"), "/"),
 		githubAPIURL:  strings.TrimRight(valueOr(env["GITHUB_API_URL"], "https://api.github.com"), "/"),
-		githubToken:   env["GITHUB_TOKEN"],
+		githubToken:   githubToken,
 		baseURL:       strings.TrimRight(env["BASE_URL"], "/"),
 		allowSimulate: allowSimulate,
+		vaultOnly:     vaultOnly,
 	}, nil
 }
 
@@ -178,6 +195,25 @@ func valueOr(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func secretValue(env map[string]string, name string) (string, error) {
+	file := env[name+"_FILE"]
+	if file == "" {
+		return env[name], nil
+	}
+	if env[name] != "" {
+		return "", fmt.Errorf("configure only one of %s and %s_FILE", name, name)
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("read %s_FILE: %w", name, err)
+	}
+	value := string(raw)
+	if value == "" || strings.ContainsAny(value, " \t\r\n") {
+		return "", fmt.Errorf("%s_FILE must contain a nonempty token without whitespace", name)
+	}
+	return value, nil
 }
 
 func (a *App) StoreKind() string {
@@ -206,6 +242,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"github_web":     a.githubWebURL,
 			"issue_comments": a.githubToken != "",
 			"allow_simulate": a.allowSimulate,
+			"vault_only":     a.vaultOnly,
 			"user":           stringPointer(user),
 		})
 		return
@@ -268,6 +305,10 @@ func (a *App) ingest(w http.ResponseWriter, r *http.Request) {
 	manifest, _ := body["manifest"].(map[string]any)
 	if problems := validateRequest(body, manifest); len(problems) != 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"errors": problems})
+		return
+	}
+	if a.vaultOnly && stringValue(body["secret_storage"]) != "vault" {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": vaultOnlyMessage})
 		return
 	}
 	rows, err := a.store.List(r.Context())
@@ -413,6 +454,10 @@ func (a *App) requestAction(w http.ResponseWriter, r *http.Request, id, action s
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid secret_storage"})
 		return
 	}
+	if a.vaultOnly && storage != "vault" {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": vaultOnlyMessage})
+		return
+	}
 	if storage == "email" && !emailPattern.MatchString(email) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Valid email required"})
 		return
@@ -481,6 +526,10 @@ func (a *App) callback(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, "get callback request", err)
 		return
 	}
+	if a.vaultOnly && row.SecretStorage != "vault" {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": vaultOnlyMessage})
+		return
+	}
 	endpoint := a.githubAPIURL + "/app-manifests/" + url.PathEscape(code) + "/conversions"
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, nil)
 	if err != nil {
@@ -534,6 +583,9 @@ func (a *App) callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) finalize(ctx context.Context, row *Request, credentials Credentials, who *string) (*Request, error) {
+	if a.vaultOnly && row.SecretStorage != "vault" {
+		return nil, errors.New(vaultOnlyMessage)
+	}
 	var deliveryInfo map[string]any
 	var err error
 	switch row.SecretStorage {
@@ -629,6 +681,10 @@ func (a *App) commentOnIssue(ctx context.Context, row *Request, credentials Cred
 }
 
 func (a *App) getOutbox(w http.ResponseWriter, r *http.Request, escapedName string) {
+	if a.vaultOnly {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": vaultOnlyMessage})
+		return
+	}
 	name, err := url.PathUnescape(escapedName)
 	if err != nil || !outboxNamePattern.MatchString(name) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid name"})

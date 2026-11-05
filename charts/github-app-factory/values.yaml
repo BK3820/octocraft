@@ -1,0 +1,40 @@
+image:
+  repository: ghcr.io/strawhat-enterprise/github-app-factory
+  # Empty tag uses the chart appVersion (set to the release version by CI).
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Request updates are not yet coordinated across processes.
+replicaCount: 1
+
+app:
+  baseURL: ""
+  allowSimulate: false
+
+# Create this Secret separately; never put credential values in Helm values.
+secrets:
+  existingSecret: github-app-factory-secrets
+  ingestTokenKey: ingest-token
+  githubTokenKey: ""
+
+persistence:
+  existingClaim: ""
+  size: 1Gi
+  # Azure managed disks, not Azure Files (which requires a Storage Account).
+  storageClass: managed-csi
+
+keyVault:
+  url: ""
+
+workloadIdentity:
+  clientId: ""
+  tenantId: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

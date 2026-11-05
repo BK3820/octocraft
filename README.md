@@ -59,6 +59,7 @@ Refresh screenshots after UI changes with `npm run screenshots`. Email mode **do
 | [Contributing](CONTRIBUTING.md) | Branch strategy, commits, reviews, test checks, release policy, ownership and ruleset enforcement |
 | [Terraform](infra/main.tf) | Linux Flex Consumption Go runtime and supporting infrastructure |
 | [Dockerfile](Dockerfile) / [Compose](compose.yaml) | Hardened standalone Go container and local persistent data volume |
+| [Helm chart](charts/github-app-factory/README.md) | Internal-only Kubernetes deployment: PVC data and Key Vault credentials, no Storage Account |
 | [Main ruleset](.github/rulesets/main.json) | Version-controlled protection policy, applied through GitHub API after the plan upgrade |
 
 ## Run locally
@@ -83,6 +84,32 @@ docker compose up --build --detach
 Open http://localhost:3000. Compose binds only to localhost, runs as a non-root user with a read-only root filesystem, and stores local requests/outbox data in the persistent `factory-data` volume. View logs with `docker compose logs -f app`; stop it with `docker compose down`. `docker compose down --volumes` also permanently removes the local data volume.
 
 This Dockerfile is for the standalone HTTP server, not the Azure Functions host. The Azure workflow packages the Go Functions worker separately. Azure Functions runs Go on Linux Flex Consumption with runtime `go` version `1.0`; Core Tools 4.12 or later builds/packages the Linux x64 binary. Core Tools 4.12 currently prints a Go preview warning during packaging, so recheck Azure support before creating resources. No registry is required for the Functions ZIP deployment.
+
+### Helm chart for Kubernetes / AKS
+
+[charts/github-app-factory](charts/github-app-factory/README.md) packages the Go container with a retained PVC for request data and Azure Key Vault for generated credentials. The [AKS example profile](charts/github-app-factory/values-aks.example.yaml) uses a managed disk (`managed-csi`), **not a Storage Account**, and accesses Key Vault through Workload Identity. Email/ZIP delivery is disabled in this deployment; input tokens are mounted as read-only Secret files.
+
+The chart is **not deployed** and does not provision AKS. It requires real Key Vault/Workload Identity configuration, an existing ingestion-token Secret and an updated reachable image. It intentionally has no public ingress or autoscaler: the standalone container lacks browser authentication, and multiple replicas are not yet safe for concurrent request updates. See the [chart guide](charts/github-app-factory/README.md) for prerequisites, install commands, authentication boundaries and data-retention details. The separate Functions Terraform and GitHub deployment still use a Storage Account; they have not been removed.
+
+### Releases: versioned image + Helm chart
+
+Every merge to `main` runs [ci.yml](.github/workflows/ci.yml). After `terraform`, `ui` and `build` pass, the `release` job publishes the same way as [gha-runner-scale-set](https://github.com/actions/actions-runner-controller/releases): one version for the image, the chart and its `appVersion`.
+
+| Artifact | Location |
+|---|---|
+| Git tag + GitHub Release | `vX.Y.Z`, with the chart `.tgz` attached and generated notes |
+| Container image (amd64 + arm64) | `ghcr.io/strawhat-enterprise/github-app-factory:X.Y.Z` and `:sha-<short>` |
+| Helm chart (OCI) | `oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory --version X.Y.Z` |
+
+[scripts/next-version.sh](scripts/next-version.sh) picks the version. The patch version is bumped on every merge. To release a minor or major version, raise `version`/`appVersion` in [Chart.yaml](charts/github-app-factory/Chart.yaml) in the PR. A commit that is already tagged is skipped.
+
+```bash
+helm show chart oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory --version 0.1.0
+helm upgrade --install factory oci://ghcr.io/strawhat-enterprise/github-app-factory-charts/github-app-factory \
+  --version 0.1.0 --namespace factory -f /secure/path/aks-values.yaml
+```
+
+The packages are private like the repository. Run `helm registry login ghcr.io` with a `read:packages` token, and give AKS an `imagePullSecrets` entry (or mirror the image to ACR).
 
 ### Seed and test locally
 
@@ -112,6 +139,7 @@ npm run test:ui
 npm run screenshots
 docker compose config -q
 docker build -t github-app-factory:local .
+bash test/helm-chart.sh
 terraform -chdir=infra init -backend=false
 terraform -chdir=infra fmt -check
 terraform -chdir=infra validate
@@ -178,7 +206,7 @@ gh variable set APP_FACTORY_ENABLED -R StrawHat-Enterprise/github-app-factory -b
 gh workflow run deploy.yml -R StrawHat-Enterprise/github-app-factory --ref main
 ```
 
-Only do this once the app resources exist. CI builds/tests first. The `approval` job then opens an issue titled **Deploy &lt;sha&gt; to production** and the run **waits** (up to 6 hours). Nothing touches Azure until BK3820 approves.
+[deploy.yml](.github/workflows/deploy.yml) is **manual dispatch only**: merges never deploy. Only do this once the app resources exist. The run first tests and packages the Functions ZIP. The `approval` job then opens an issue titled **Deploy &lt;sha&gt; to production** and the run **waits** (up to 6 hours). Nothing touches Azure until BK3820 approves.
 
 Approval works in two layers:
 

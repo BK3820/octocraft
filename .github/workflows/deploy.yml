@@ -1,43 +1,20 @@
-name: Build and deploy
+name: Deploy Azure Functions (manual)
 
+# Manual only. Tests, image and Helm chart releases run in ci.yml on every
+# PR / merge; this workflow ships the Azure Functions package after approval.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  terraform:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.10.1
-      - run: terraform -chdir=infra fmt -check
-      - run: terraform -chdir=infra init -backend=false -lockfile=readonly
-      - run: terraform -chdir=infra validate
-      - run: terraform -chdir=infra test
-  ui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:ui
-  build:
+  package:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,10 +24,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
       - run: go vet ./...
-      - run: npm test
+      - run: go test ./...
       - name: Package Go Function app
         run: |
           mkdir -p bin
@@ -59,26 +34,6 @@ jobs:
             npx --yes --package=azure-functions-core-tools@4.12.0 \
             func pack --no-build
           mv github-app-factory.zip release.zip
-      - name: Build container image
-        run: docker build --tag github-app-factory:${{ github.sha }} .
-      - name: Container health smoke test
-        run: |
-          docker run --detach --name github-app-factory-container-test \
-            --publish 127.0.0.1:3100:3000 \
-            --mount type=tmpfs,destination=/data,tmpfs-mode=1777 \
-            --env DATA_DIR=/data \
-            --env INGEST_TOKEN=container-test-only \
-            --env ALLOW_SIMULATE=true \
-            github-app-factory:${{ github.sha }}
-          trap 'docker rm -f github-app-factory-container-test >/dev/null 2>&1 || true' EXIT
-          for attempt in $(seq 1 20); do
-            if curl --fail --silent http://127.0.0.1:3100/api/health; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs github-app-factory-container-test
-          exit 1
       - uses: actions/upload-artifact@v7
         with:
           name: functionapp
@@ -88,10 +43,8 @@ jobs:
   approval:
     # Plan-agnostic gate: works on GitHub Free private repos, where environment
     # required reviewers are unavailable. Opens an issue and waits for BK3820.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.APP_FACTORY_ENABLED == 'true')
-    needs: [build, terraform, ui]
+    if: vars.APP_FACTORY_ENABLED == 'true'
+    needs: [package]
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -113,7 +66,7 @@ jobs:
           fail-on-denial: true
   deploy:
     if: vars.APP_FACTORY_ENABLED == 'true' && github.ref == 'refs/heads/main'
-    needs: [build, approval]
+    needs: [package, approval]
     runs-on: ubuntu-latest
     environment:
       name: production

@@ -1,0 +1,18 @@
+This release is internal-only. The Go container has no browser sign-in protection.
+Do not publish the Service directly or place it behind an unauthenticated ingress.
+
+Forward the Service to your workstation:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "github-app-factory.fullname" . }} 3100:80
+
+Open http://localhost:3100
+
+Required Secret: {{ .Values.secrets.existingSecret }}
+Required token key: {{ .Values.secrets.ingestTokenKey }}
+
+The health probes confirm HTTP responsiveness only, not Storage or Vault readiness.
+Requests use the PVC; generated credentials require Key Vault.
+Ingestion and optional GitHub tokens are mounted as read-only Secret files.
+No Storage Account, Table or Blob backend is configured by this chart.
+Chart-created PVCs are retained on uninstall; back up data before deleting them.
+Key Vault requires AKS OIDC/Workload Identity, federation for this release's
+ServiceAccount, scoped data-plane roles, and registry image-pull access.
