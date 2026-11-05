@@ -15,6 +15,7 @@ module.exports = defineConfig({
     command: 'go run ./cmd/server',
     url: 'http://127.0.0.1:3100/api/health',
     reuseExistingServer: false,
+    timeout: 180_000,
     env: {
       PORT: '3100', DATA_DIR: dataDir, STORAGE_ACCOUNT_NAME: '',
       KEY_VAULT_URL: '', VAULT_ADDR: '', VAULT_TOKEN: '',

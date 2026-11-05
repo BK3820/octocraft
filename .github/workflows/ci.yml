@@ -29,6 +29,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Warm Go build cache for the Playwright web server
+        run: go build -o /dev/null ./cmd/server
       - uses: actions/setup-node@v7
         with:
           node-version: 22
