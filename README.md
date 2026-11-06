@@ -8,7 +8,7 @@
 
 An approval workspace for creating GitHub Apps. GitHub issues are the ServiceNow stand-in for this POC. A workflow queues a manifest, a person confirms creation on GitHub, and the Go service stores the resulting credentials in Vault or prepares a ZIP outbox. The UI remains static HTML/CSS/JavaScript; the API, persistence and credential-delivery backend are Go.
 
-> **Deployment state:** Azure remains deleted. `APP_FACTORY_ENABLED=false`. The Terraform Go runtime and deployment pipeline have **not been applied to Azure**. GitHub currently refuses private-repository required reviewers and rulesets on the organization’s plan. The workflow's issue-based approval gate still works on the current plan; an Enterprise-capable plan is needed for GitHub's native private-repo deployment review. No billing or repository visibility change has been made.
+> __Deployment state:__ Azure remains deleted. `APP_FACTORY_ENABLED=false`. The Terraform Go runtime and deployment pipeline have __not been applied to Azure__. GitHub currently refuses private-repository required reviewers and rulesets on the organization’s plan. The workflow's issue-based approval gate still works on the current plan; an Enterprise-capable plan is needed for GitHub's native private-repo deployment review. No billing or repository visibility change has been made.
 
 The `production` environment now exists, allows only `main`, and has admin bypass disabled. **Required reviewer enforcement is not installed yet** because GitHub rejected it. CI must pass and BK3820 must approve the deployment issue before Azure login; after a plan upgrade, the environment can add native review as a second gate. Squash-only merging and automatic merged-branch deletion are configured.
 
@@ -97,7 +97,7 @@ The chart is **not deployed** and does not provision AKS. It requires real Key V
 
 ### Releases: versioned image + Helm chart
 
-Every merge to `main` runs [ci.yml](.github/workflows/ci.yml). After `terraform`, `ui` and `build` pass, the `release` job publishes the same way as [gha-runner-scale-set](https://github.com/actions/actions-runner-controller/releases): one version for the image, the chart and its `appVersion`.
+Every pull request and push to `main` starts [ci.yml](.github/workflows/ci.yml). Markdown, `docs/**`, license, and notice-only changes skip the test/build and release jobs; changes to source, tests, workflows, infrastructure, packaging, or other build inputs run CI. Code/build changes pushed to `main` publish a versioned image, OCI Helm chart, and GitHub Release after `terraform`, `ui`, and `build` pass.
 
 | Artifact | Location |
 |---|---|
@@ -175,7 +175,7 @@ The provisioning operator needs Azure resource and role-assignment permissions (
 node scripts/configure-github.js
 ```
 
-This configures `production` with **BK3820 as required reviewer**, no admin bypass, deployment from `main` only, and PR/ruleset policy. It fails explicitly if GitHub refuses any required protection. `APP_FACTORY_ENABLED` stays false.
+This configures `production` with __BK3820 as required reviewer__, no admin bypass, deployment from `main` only, and PR/ruleset policy. It fails explicitly if GitHub refuses any required protection. `APP_FACTORY_ENABLED` stays false.
 
 Self-review for **deployment** is intentionally allowed so BK3820 can approve a run they initiated. PR self-approval is different: a second qualified maintainer is required when BK3820 authors a PR. See [Contributing](CONTRIBUTING.md).
 
@@ -268,3 +268,7 @@ Do not delete the resource group manually after Terraform deployment: that bypas
 ## POC boundaries
 
 Email is not sent or encrypted. Browser-created app credentials cannot currently be recovered automatically if the one-time conversion succeeds but delivery fails. Request updates are not transactional or concurrency-safe. The tenant-wide UI login policy is not an approver allowlist. These and other production gaps are explicitly listed in [Operations](docs/operations.md); this is a working POC, not a fully hardened provisioning service.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

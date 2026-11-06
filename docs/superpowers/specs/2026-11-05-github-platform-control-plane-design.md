@@ -1,6 +1,6 @@
 # GitHub Platform Control Plane Design
 
-Status: Proposed for review. The hybrid approach was selected for exploration; this document still needs approval before an implementation plan is written.
+Status: Approved. The hybrid control-plane direction and Apache-2.0 license are selected for the project.
 
 ## Intent
 
@@ -156,13 +156,13 @@ Role assignments and approval thresholds must be configurable. The system must n
 - Identify which ServiceNow ticket type, fields, status transitions, and polling cadence the first connector must support.
 - Define the intended repository backup scope: Git data only, or also issues, pull requests, releases, metadata, and configuration.
 - Confirm whether multi-organization support is required in the first release or can follow the one-organization MVP.
-- Choose the open-source license and contribution/governance model; the current request establishes open-source intent but not a license.
+- Confirm the open-source contribution and governance model.
 - Confirm how cost centers are assigned (repository metadata, policy mapping, ServiceNow catalog data, or another source) and which Actions billing data is available to the installation.
 - Produce a capability matrix for each required operation, GitHub API, permission, plan requirement, and fallback before enabling mutations.
 
 ## Approval Gate
 
-This document records the selected hybrid direction and the current scope proposal. Review the assumptions and open decisions above. An implementation plan should be written only after this design is approved; no product code or infrastructure changes are authorized by this document alone.
+The hybrid direction and Apache-2.0 license are approved. Remaining open decisions should be resolved as their epics are planned. An implementation plan should precede product-code or infrastructure changes; this design document alone authorizes neither.
 
 ## Decision and Trackable Story Backlog
 

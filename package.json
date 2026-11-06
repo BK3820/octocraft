@@ -2,6 +2,7 @@
   "name": "octocraft",
   "version": "0.2.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Go-based GitHub App approval workspace with IssueOps intake and secure credential handoff.",
   "scripts": {
     "start": "go run ./cmd/server",

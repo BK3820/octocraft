@@ -14,7 +14,44 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code_changed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            changed_files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          elif [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+            changed_files=$(git ls-tree -r --name-only "$HEAD_SHA")
+          else
+            changed_files=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+          fi
+
+          code_changed=false
+          if [[ -n "$changed_files" ]]; then
+            while IFS= read -r path; do
+              case "$path" in
+                *.md|docs/*|LICENSE|LICENSE-*|NOTICE|NOTICE-*) ;;
+                *) code_changed=true; break ;;
+              esac
+            done <<< "$changed_files"
+          fi
+
+          echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
+
   terraform:
+    needs: [changes]
+    if: needs.changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,6 +63,8 @@ jobs:
       - run: terraform -chdir=infra validate
       - run: terraform -chdir=infra test
   ui:
+    needs: [changes]
+    if: needs.changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,6 +81,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui
   build:
+    needs: [changes]
+    if: needs.changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -82,9 +123,9 @@ jobs:
           exit 1
 
   release:
-    # Every merge to main publishes a versioned image + OCI Helm chart + GitHub Release.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [terraform, ui, build]
+    # Code/build changes on main publish a versioned image + OCI Helm chart + GitHub Release.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.code_changed == 'true'
+    needs: [changes, terraform, ui, build]
     runs-on: ubuntu-latest
     concurrency:
       group: release
